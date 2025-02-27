@@ -16,8 +16,32 @@ common warnings
 
 library
   import:             warnings
-  exposed-modules:    Zmqx
+  exposed-modules:
+    Zmqx
+    Zmqx.Core.Dealer
+    Zmqx.Core.Pair
+    Zmqx.Core.Pub
+    Zmqx.Core.Pull
+    Zmqx.Core.Push
+    Zmqx.Core.Rep
+    Zmqx.Core.Req
+    Zmqx.Core.Router
+    Zmqx.Core.Sub
+    Zmqx.Core.XPub
+    Zmqx.Core.XSub
+
   other-modules:
+    Zmqx.Core.Error
+    Zmqx.Core.Internal.Context
+    Zmqx.Core.Internal.Curve
+    Zmqx.Core.Internal.IO
+    Zmqx.Core.Internal.Monitor
+    Zmqx.Core.Internal.Options
+    Zmqx.Core.Internal.Poll
+    Zmqx.Core.Internal.Socket
+    Zmqx.Core.Internal.SocketFinalizer
+    Zmqx.Core.Internal.SomeSocket
+    Zmqx.Core.Subscription
     Zmqx.Internal
     Zmqx.Internal.Bindings
     Zmqx.Internal.Bindings.Constants
@@ -30,7 +54,6 @@ library
   build-depends:
     , array
     , base        ^>=4.20.0.0
-    , base64
     , bytestring
     , containers
     , primitive
@@ -71,13 +94,25 @@ library
   else
     pkgconfig-depends: libzmq >=4.0 && <5.0
 
-test-suite zmqx-test
+test-suite test-simple-req
   import:           warnings
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
-  main-is:          Main.hs
-  build-depends:    base ^>=4.20.0.0
+  main-is:          SimpleReq.hs
+  build-depends:
+    , base  ^>=4.20.0.0
+    , zmqx
+
+test-suite test-simple-rep
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimpleRep.hs
+  build-depends:
+    , base  ^>=4.20.0.0
+    , zmqx
 
 executable oops
   import:           warnings

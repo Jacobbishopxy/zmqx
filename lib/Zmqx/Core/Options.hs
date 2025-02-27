@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Zmqx.Core.Internal.Options
+module Zmqx.Core.Options
   ( -- * Options
     Options,
     defaultOptions,
@@ -34,9 +34,9 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Zmqx.Internal
 import Numeric.Natural (Natural)
-import Zmqx.Core.Error (enrichError, throwOkError, unexpectedError)
-import Zmqx.Core.Internal.Curve (CurvePublicKey (..), CurveSecretKey (..), deriveCurvePublicKey)
-import {-# SOURCE #-} Zmqx.Core.Internal.Socket (Socket)
+import Zmqx.Error (enrichError, throwOkError, unexpectedError)
+import Zmqx.Core.Curve (CurvePublicKey (..), CurveSecretKey (..), deriveCurvePublicKey)
+import {-# SOURCE #-} Zmqx.Core.Socket (Socket)
 
 -- | Options.
 data Options a

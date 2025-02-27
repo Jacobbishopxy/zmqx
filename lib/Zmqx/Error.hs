@@ -7,7 +7,7 @@
 -- date: 2025/02/27 10:54:30 Thursday
 -- brief:
 
-module Zmqx.Core.Error
+module Zmqx.Error
   ( Error (..),
     enrichError,
     throwOkError,

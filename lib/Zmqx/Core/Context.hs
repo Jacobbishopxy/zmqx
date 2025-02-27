@@ -5,7 +5,7 @@
 -- date: 2025/02/27 11:01:10 Thursday
 -- brief:
 
-module Zmqx.Core.Internal.Context (
+module Zmqx.Core.Context (
 globalContextRef,
     globalSocketFinalizersRef,
     run,
@@ -17,10 +17,10 @@ import Data.Foldable (for_)
 import Data.IORef
 import Zmqx.Internal
 import System.IO.Unsafe (unsafePerformIO)
-import Zmqx.Core.Error (enrichError, unexpectedError)
-import Zmqx.Core.Internal.Options (Options)
-import Zmqx.Core.Internal.Options qualified as Options
-import Zmqx.Core.Internal.SocketFinalizer (SocketFinalizer, runSocketFinalizer)
+import Zmqx.Error (enrichError, unexpectedError)
+import Zmqx.Core.Options (Options)
+import Zmqx.Core.Options qualified as Options
+import Zmqx.Core.SocketFinalizer (SocketFinalizer, runSocketFinalizer)
 
 -- TODO runtime error if `run` twice
 

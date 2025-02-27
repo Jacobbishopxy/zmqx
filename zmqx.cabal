@@ -18,30 +18,29 @@ library
   import:             warnings
   exposed-modules:
     Zmqx
-    Zmqx.Core.Dealer
-    Zmqx.Core.Pair
-    Zmqx.Core.Pub
-    Zmqx.Core.Pull
-    Zmqx.Core.Push
-    Zmqx.Core.Rep
-    Zmqx.Core.Req
-    Zmqx.Core.Router
-    Zmqx.Core.Sub
-    Zmqx.Core.XPub
-    Zmqx.Core.XSub
+    Zmqx.Dealer
+    Zmqx.Pair
+    Zmqx.Pub
+    Zmqx.Pull
+    Zmqx.Push
+    Zmqx.Rep
+    Zmqx.Req
+    Zmqx.Router
+    Zmqx.Sub
+    Zmqx.XPub
+    Zmqx.XSub
 
   other-modules:
-    Zmqx.Core.Error
-    Zmqx.Core.Internal.Context
-    Zmqx.Core.Internal.Curve
-    Zmqx.Core.Internal.IO
-    Zmqx.Core.Internal.Monitor
-    Zmqx.Core.Internal.Options
-    Zmqx.Core.Internal.Poll
-    Zmqx.Core.Internal.Socket
-    Zmqx.Core.Internal.SocketFinalizer
-    Zmqx.Core.Internal.SomeSocket
-    Zmqx.Core.Subscription
+    Zmqx.Core.Context
+    Zmqx.Core.Curve
+    Zmqx.Core.IO
+    Zmqx.Core.Monitor
+    Zmqx.Core.Options
+    Zmqx.Core.Poll
+    Zmqx.Core.Socket
+    Zmqx.Core.SocketFinalizer
+    Zmqx.Core.SomeSocket
+    Zmqx.Error
     Zmqx.Internal
     Zmqx.Internal.Bindings
     Zmqx.Internal.Bindings.Constants
@@ -50,6 +49,7 @@ library
     Zmqx.Internal.Bindings.ZConstants
     Zmqx.Internal.Functions
     Zmqx.Internal.Types
+    Zmqx.Subscription
 
   build-depends:
     , array

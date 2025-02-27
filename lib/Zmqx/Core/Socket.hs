@@ -1,7 +1,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Zmqx.Core.Internal.Socket
+module Zmqx.Core.Socket
   ( Socket (..),
     Extra (..),
     CanSend (..),
@@ -56,11 +56,11 @@ import Numeric (showHex)
 import System.IO qualified as IO
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix.Types (Fd (..))
-import Zmqx.Core.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
-import Zmqx.Core.Internal.Context (globalContextRef, globalSocketFinalizersRef)
-import Zmqx.Core.Internal.IO (keepAlive)
-import Zmqx.Core.Internal.Options qualified as Options
-import Zmqx.Core.Internal.SocketFinalizer (makeSocketFinalizer)
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
+import Zmqx.Core.Context (globalContextRef, globalSocketFinalizersRef)
+import Zmqx.Core.IO (keepAlive)
+import Zmqx.Core.Options qualified as Options
+import Zmqx.Core.SocketFinalizer (makeSocketFinalizer)
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
 

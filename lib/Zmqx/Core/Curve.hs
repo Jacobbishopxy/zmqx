@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Zmqx.Core.Internal.Curve
+module Zmqx.Core.Curve
   ( CurvePublicKey (..),
     CurveSecretKey (..),
     generateCurveSecretKey,
@@ -13,7 +13,7 @@ import Data.ByteString (ByteString)
 import Data.Coerce (coerce)
 import Data.Text (Text)
 import System.IO.Unsafe (unsafeDupablePerformIO)
-import Zmqx.Core.Error (enrichError)
+import Zmqx.Error (enrichError)
 import Zmqx.Internal
 
 newtype CurvePublicKey

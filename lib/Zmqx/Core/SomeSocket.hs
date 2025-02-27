@@ -1,9 +1,9 @@
-module Zmqx.Core.Internal.SomeSocket
+module Zmqx.Core.SomeSocket
   ( SomeSocket (..),
   )
 where
 
-import Zmqx.Core.Internal.Socket (Socket (..))
+import Zmqx.Core.Socket (Socket (..))
 
 data SomeSocket
   = forall a. SomeSocket (Socket a)

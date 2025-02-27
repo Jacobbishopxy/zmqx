@@ -11,15 +11,14 @@ module Main where
 import Control.Concurrent (threadDelay)
 import Control.Exception (throwIO)
 import Control.Monad (forever)
-import Data.Foldable (for_)
 import Zmqx
-import Zmqx.Core.Rep
+import Zmqx.Rep
 
 main :: IO ()
 main =
   Zmqx.run Zmqx.defaultOptions do
     -- Socket to talk to clients
-    responder <- unwrap (Zmqx.Core.Rep.open (Zmqx.name "responder"))
+    responder <- unwrap (Zmqx.Rep.open (Zmqx.name "responder"))
     unwrap (Zmqx.bind responder "tcp://*:5555")
 
     forever do

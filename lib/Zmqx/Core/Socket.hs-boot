@@ -1,4 +1,4 @@
-module Zmqx.Core.Internal.Socket (Socket) where
+module Zmqx.Core.Socket (Socket) where
 
 import GHC.TypeLits (Symbol)
 

@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Zmqx.Core.Router
+module Zmqx.Router
   ( Router,
     defaultOptions,
     sendQueueSize,
@@ -19,11 +19,11 @@ import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Zmqx.Internal
 import Numeric.Natural (Natural)
-import Zmqx.Core.Error (Error, catchingOkErrors)
-import Zmqx.Core.Internal.Options (Options)
-import Zmqx.Core.Internal.Options qualified as Options
-import Zmqx.Core.Internal.Socket (CanReceives, Socket (..))
-import Zmqx.Core.Internal.Socket qualified as Socket
+import Zmqx.Error (Error, catchingOkErrors)
+import Zmqx.Core.Options (Options)
+import Zmqx.Core.Options qualified as Options
+import Zmqx.Core.Socket (CanReceives, Socket (..))
+import Zmqx.Core.Socket qualified as Socket
 
 -- | A thread-safe __router__ socket.
 --

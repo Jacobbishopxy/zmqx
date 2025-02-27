@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Zmqx.Core.XPub
-  ( XPub,
+module Zmqx.Pub
+  ( Pub,
     defaultOptions,
     lossy,
     sendQueueSize,
@@ -13,8 +13,6 @@ module Zmqx.Core.XPub
     disconnect,
     send,
     sends,
-    receive,
-    receives,
   )
 where
 
@@ -23,85 +21,79 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
-import Zmqx.Core.Error (Error, catchingOkErrors, enrichError, throwOkError)
-import Zmqx.Core.Internal.Options (Options)
-import Zmqx.Core.Internal.Options qualified as Options
-import Zmqx.Core.Internal.Socket (CanReceive, CanReceives, CanSend, Socket (..))
-import Zmqx.Core.Internal.Socket qualified as Socket
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError)
+import Zmqx.Core.Options (Options)
+import Zmqx.Core.Options qualified as Options
+import Zmqx.Core.Socket (CanSend, Socket (..))
+import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Internal
 
--- | A thread-safe __xpublisher__ socket.
+-- | A thread-safe __publisher__ socket.
 --
 -- Valid peers: __subscriber__, __xsubscriber__
-type XPub =
-  Socket "XPUB"
+type Pub =
+  Socket "PUB"
 
-instance Options.CanSetLossy XPub
+instance Options.CanSetLossy Pub
 
-instance Options.CanSetSendQueueSize XPub
+instance Options.CanSetSendQueueSize Pub
 
-instance CanReceive XPub where
-  receive_ = receive
-
-instance CanReceives XPub where
-  receives_ = receives
-
-instance CanSend XPub where
+instance CanSend Pub where
   send_ = send
 
-defaultOptions :: Options XPub
+defaultOptions :: Options Pub
 defaultOptions =
   Options.defaultOptions
 
-lossy :: Options XPub
+lossy :: Options Pub
 lossy =
   Options.lossy
 
-sendQueueSize :: Natural -> Options XPub
+sendQueueSize :: Natural -> Options Pub
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open an __xpublisher__.
-open :: Options XPub -> IO (Either Error XPub)
+-- | Open a __publisher__.
+open :: Options Pub -> IO (Either Error Pub)
 open options =
   catchingOkErrors do
     Socket.openSocket
-      ZMQ_XPUB
+      ZMQ_PUB
       ( Options.sockopt ZMQ_RCVHWM 0 -- don't drop subscriptions
           <> Options.sockopt ZMQ_XPUB_NODROP 1 -- not lossy
           <> options
       )
-      Socket.XPubExtra
+      Socket.PubExtra
 
--- | Bind an __xpublisher__ to an __endpoint__.
+-- | Bind a __publisher__ to an __endpoint__.
 --
 -- /Alias/: 'Zmq.bind'
-bind :: XPub -> Text -> IO (Either Error ())
+bind :: Pub -> Text -> IO (Either Error ())
 bind =
   Socket.bind
 
--- | Unbind an __xpublisher__ from an __endpoint__.
+-- | Unbind a __publisher__ from an __endpoint__.
 --
 -- /Alias/: 'Zmq.unbind'
-unbind :: XPub -> Text -> IO ()
+unbind :: Pub -> Text -> IO ()
 unbind =
   Socket.unbind
 
--- | Connect an __xpublisher__ to an __endpoint__.
+-- | Connect a __publisher__ to an __endpoint__.
 --
 -- /Alias/: 'Zmq.connect'
-connect :: XPub -> Text -> IO (Either Error ())
+connect :: Pub -> Text -> IO (Either Error ())
 connect =
   Socket.connect
 
--- | Disconnect an __xpublisher__ from an __endpoint__.
+-- | Disconnect a __publisher__ from an __endpoint__.
 --
 -- /Alias/: 'Zmq.disconnect'
-disconnect :: XPub -> Text -> IO ()
+disconnect :: Pub -> Text -> IO ()
 disconnect =
   Socket.disconnect
 
--- | Send a __message__ on an __xpublisher__ to all peers.
+-- | Send a __message__ on a __publisher__ to all peers.
 --
 -- This operation never blocks:
 --
@@ -112,14 +104,14 @@ disconnect =
 --       queue.
 --
 -- /Alias/: 'Zmq.send'
-send :: XPub -> ByteString -> IO (Either Error ())
+send :: Pub -> ByteString -> IO (Either Error ())
 send socket frame =
   catchingOkErrors do
     sent <- Socket.sendOneDontWait socket frame False
     when (not sent) do
       throwOkError (enrichError "zmq_send" EAGAIN)
 
--- | Send a __multiframe message__ on an __xpublisher__ to all peers.
+-- | Send a __multiframe message__ on a __publisher__ to all peers.
 --
 -- This operation never blocks:
 --
@@ -128,7 +120,7 @@ send socket frame =
 --     * If the 'lossy' option is not set, and any peer has a full message queue, then the message will not be sent to
 --       any peer, and this function will return @EAGAIN@. It is not possible to block until no peer has a full message
 --       queue.
-sends :: XPub -> [ByteString] -> IO (Either Error ())
+sends :: Pub -> [ByteString] -> IO (Either Error ())
 sends socket = \case
   [] -> pure (Right ())
   frame : frames ->
@@ -136,19 +128,3 @@ sends socket = \case
       sent <- Socket.sendManyDontWait socket (frame :| frames)
       when (not sent) do
         throwOkError (enrichError "zmq_send" EAGAIN)
-
--- | Receive a __message__ on an __xpublisher__ from any peer (fair-queued).
---
--- /Alias/: 'Zmq.receive'
-receive :: XPub -> IO (Either Error ByteString)
-receive socket =
-  catchingOkErrors (Socket.receiveOne socket)
-
--- | Receive a __multiframe message__ on an __xpublisher__ from any peer (fair-queued).
---
--- /Alias/: 'Zmq.receives'
-receives :: XPub -> IO (Either Error [ByteString])
-receives socket =
-  catchingOkErrors do
-    frame :| frames <- Socket.receiveMany socket
-    pure (frame : frames)

@@ -1,6 +1,6 @@
 {-# LANGUAGE MagicHash #-}
 
-module Zmqx.Core.Internal.IO
+module Zmqx.Core.IO
   ( keepAlive,
   )
 where

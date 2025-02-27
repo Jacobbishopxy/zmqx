@@ -1,4 +1,4 @@
-module Zmqx.Core.Subscription
+module Zmqx.Subscription
   ( pattern Subscribe,
     pattern Unsubscribe,
   )

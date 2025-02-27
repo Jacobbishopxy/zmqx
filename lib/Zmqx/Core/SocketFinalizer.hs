@@ -1,7 +1,7 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 
-module Zmqx.Core.Internal.SocketFinalizer
+module Zmqx.Core.SocketFinalizer
   ( SocketFinalizer,
     makeSocketFinalizer,
     runSocketFinalizer,

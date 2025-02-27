@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
-module Zmqx.Core.Internal.Poll
+module Zmqx.Core.Poll
   ( CanPoll,
     Sockets,
     Ready (..),
@@ -27,11 +27,11 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
-import Zmqx.Core.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
-import Zmqx.Core.Internal.IO (keepAlive)
-import Zmqx.Core.Internal.Socket (Socket (..))
-import Zmqx.Core.Internal.Socket qualified as Socket
-import Zmqx.Core.Internal.SomeSocket (SomeSocket (..))
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
+import Zmqx.Core.IO (keepAlive)
+import Zmqx.Core.Socket (Socket (..))
+import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Core.SomeSocket (SomeSocket (..))
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
 

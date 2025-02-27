@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Zmqx.Core.XSub
+module Zmqx.XSub
   ( XSub,
     defaultOptions,
     open,
@@ -21,12 +21,12 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Zmqx.Internal
-import Zmqx.Core.Error (Error, catchingOkErrors)
-import Zmqx.Core.Internal.Options (Options)
-import Zmqx.Core.Internal.Options qualified as Options
-import Zmqx.Core.Internal.Socket (CanReceive, CanReceives, CanSend, Socket (..))
-import Zmqx.Core.Internal.Socket qualified as Socket
-import Zmqx.Core.Subscription (pattern Subscribe, pattern Unsubscribe)
+import Zmqx.Error (Error, catchingOkErrors)
+import Zmqx.Core.Options (Options)
+import Zmqx.Core.Options qualified as Options
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, Socket (..))
+import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Subscription (pattern Subscribe, pattern Unsubscribe)
 
 -- | A thread-safe __xsubscriber__ socket.
 --

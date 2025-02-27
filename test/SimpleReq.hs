@@ -12,7 +12,7 @@ import Control.Exception (throwIO)
 import Data.Foldable (for_)
 import Text.Printf (printf)
 import Zmqx
-import Zmqx.Core.Req
+import Zmqx.Req
 
 main :: IO ()
 main =
@@ -20,7 +20,7 @@ main =
     Zmqx.defaultOptions
     do
       putStrLn "Connecting to hello world server..."
-      requester <- unwrap (Zmqx.Core.Req.open (Zmqx.name "requester"))
+      requester <- unwrap (Zmqx.Req.open (Zmqx.name "requester"))
       unwrap (Zmqx.connect requester "tcp://localhost:5555")
 
       for_ [(0 :: Int) .. 9] \requestNbr -> do

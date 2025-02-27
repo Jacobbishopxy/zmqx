@@ -89,26 +89,26 @@ module Zmqx
 where
 
 import Data.ByteString (ByteString)
-import Zmqx.Core.Dealer (Dealer)
-import Zmqx.Core.Error (Error (..))
-import Zmqx.Core.Internal.Context
-import Zmqx.Core.Internal.Curve
-import Zmqx.Core.Internal.Monitor (monitor)
-import Zmqx.Core.Internal.Options qualified as Options
-import Zmqx.Core.Internal.Poll (CanPoll, Ready (..), Sockets, also, poll, pollFor, pollUntil, the)
-import Zmqx.Core.Internal.Socket qualified as Socket
-import Zmqx.Core.Pair (Pair)
-import Zmqx.Core.Pub (Pub)
-import Zmqx.Core.Pull (Pull)
-import Zmqx.Core.Push (Push)
-import Zmqx.Core.Rep (Rep)
-import Zmqx.Core.Req (Req)
-import Zmqx.Core.Router (Router)
-import Zmqx.Core.Sub (Sub)
-import Zmqx.Core.Subscription (pattern Subscribe, pattern Unsubscribe)
-import Zmqx.Core.XPub (XPub)
-import Zmqx.Core.XSub (XSub)
+import Zmqx.Core.Context
+import Zmqx.Core.Curve
+import Zmqx.Core.Monitor (monitor)
+import Zmqx.Core.Options qualified as Options
+import Zmqx.Core.Poll (CanPoll, Ready (..), Sockets, also, poll, pollFor, pollUntil, the)
+import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Dealer (Dealer)
+import Zmqx.Error (Error (..))
 import Zmqx.Internal
+import Zmqx.Pair (Pair)
+import Zmqx.Pub (Pub)
+import Zmqx.Pull (Pull)
+import Zmqx.Push (Push)
+import Zmqx.Rep (Rep)
+import Zmqx.Req (Req)
+import Zmqx.Router (Router)
+import Zmqx.Sub (Sub)
+import Zmqx.Subscription (pattern Subscribe, pattern Unsubscribe)
+import Zmqx.XPub (XPub)
+import Zmqx.XSub (XSub)
 
 send :: (Socket.CanSend socket) => socket -> ByteString -> IO (Either Error ())
 send =

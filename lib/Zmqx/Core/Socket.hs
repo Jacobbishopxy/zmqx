@@ -1,5 +1,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-missing-role-annotations #-}
 
 module Zmqx.Core.Socket
   ( Socket (..),
@@ -56,11 +57,11 @@ import Numeric (showHex)
 import System.IO qualified as IO
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix.Types (Fd (..))
-import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Core.Context (globalContextRef, globalSocketFinalizersRef)
 import Zmqx.Core.IO (keepAlive)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.SocketFinalizer (makeSocketFinalizer)
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
 

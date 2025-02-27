@@ -1,5 +1,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DerivingVia #-}
+{-# OPTIONS_GHC -Wno-missing-role-annotations #-}
 
 -- file: Types.hs
 -- author: Jacob Xie

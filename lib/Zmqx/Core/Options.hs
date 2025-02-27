@@ -1,5 +1,6 @@
-{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-missing-poly-kind-signatures #-}
+{-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
 module Zmqx.Core.Options
   ( -- * Options
@@ -32,11 +33,11 @@ import Data.Coerce (coerce)
 import Data.Int (Int32)
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Zmqx.Internal
 import Numeric.Natural (Natural)
-import Zmqx.Error (enrichError, throwOkError, unexpectedError)
 import Zmqx.Core.Curve (CurvePublicKey (..), CurveSecretKey (..), deriveCurvePublicKey)
 import {-# SOURCE #-} Zmqx.Core.Socket (Socket)
+import Zmqx.Error (enrichError, throwOkError, unexpectedError)
+import Zmqx.Internal
 
 -- | Options.
 data Options a
@@ -154,7 +155,7 @@ curveServer (CurveSecretKey secretKey) =
       setSocketOption socket ZMQ_CURVE_SERVER 1
       setSocketOption socket ZMQ_CURVE_SECRETKEY secretKey
 
-lossy :: CanSetLossy socket => Options socket
+lossy :: (CanSetLossy socket) => Options socket
 lossy =
   sockopt ZMQ_XPUB_NODROP 0
 
@@ -162,7 +163,7 @@ name :: Text -> Options (Socket a)
 name =
   SocketOptions mempty
 
-sendQueueSize :: CanSetSendQueueSize socket => Natural -> Options socket
+sendQueueSize :: (CanSetSendQueueSize socket) => Natural -> Options socket
 sendQueueSize n =
   sockopt ZMQ_SNDHWM (natToInt32 n)
 

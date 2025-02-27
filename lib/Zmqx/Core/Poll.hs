@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-missing-poly-kind-signatures #-}
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 
 module Zmqx.Core.Poll
@@ -27,11 +28,11 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
-import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Core.IO (keepAlive)
 import Zmqx.Core.Socket (Socket (..))
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Core.SomeSocket (SomeSocket (..))
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
 

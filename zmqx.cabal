@@ -113,14 +113,3 @@ test-suite test-simple-rep
   build-depends:
     , base  ^>=4.20.0.0
     , zmqx
-
-executable oops
-  import:           warnings
-  main-is:          Main.hs
-  build-depends:
-  build-depends:
-    , base  ^>=4.20.0.0
-    , zmqx
-
-  hs-source-dirs:   app
-  default-language: GHC2024

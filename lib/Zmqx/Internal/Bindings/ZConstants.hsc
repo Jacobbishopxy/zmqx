@@ -1,0 +1,66 @@
+{-# LANGUAGE CPP #-}
+
+-- file: ZConstants.hsc
+-- author: Jacob Xie
+-- date: 2025/02/26 17:07:14 Wednesday
+-- brief:
+
+module Zmqx.Internal.Bindings.ZConstants (module Zmqx.Internal.Bindings.ZConstants) where
+
+#include <zmq.h>
+
+import Foreign.C (CInt)
+
+_EADDRINUSE :: CInt
+_EADDRINUSE = #const EADDRINUSE
+
+_EADDRNOTAVAIL :: CInt
+_EADDRNOTAVAIL = #const EADDRNOTAVAIL
+
+_EAFNOSUPPORT :: CInt
+_EAFNOSUPPORT = #const EAFNOSUPPORT
+
+_ECONNABORTED :: CInt
+_ECONNABORTED = #const ECONNABORTED
+
+_ECONNREFUSED :: CInt
+_ECONNREFUSED = #const ECONNREFUSED
+
+_ECONNRESET :: CInt
+_ECONNRESET = #const ECONNRESET
+
+_EHOSTUNREACH :: CInt
+_EHOSTUNREACH = #const EHOSTUNREACH
+
+_EINPROGRESS :: CInt
+_EINPROGRESS = #const EINPROGRESS
+
+_EMSGSIZE :: CInt
+_EMSGSIZE = #const EMSGSIZE
+
+_ENETDOWN :: CInt
+_ENETDOWN = #const ENETDOWN
+
+_ENETRESET :: CInt
+_ENETRESET = #const ENETRESET
+
+_ENETUNREACH :: CInt
+_ENETUNREACH = #const ENETUNREACH
+
+_ENOBUFS :: CInt
+_ENOBUFS = #const ENOBUFS
+
+_ENOTCONN :: CInt
+_ENOTCONN = #const ENOTCONN
+
+_ENOTSOCK :: CInt
+_ENOTSOCK = #const ENOTSOCK
+
+_ENOTSUP :: CInt
+_ENOTSUP = #const ENOTSUP
+
+_EPROTONOSUPPORT :: CInt
+_EPROTONOSUPPORT = #const EPROTONOSUPPORT
+
+_ETIMEDOUT :: CInt
+_ETIMEDOUT = #const ETIMEDOUT

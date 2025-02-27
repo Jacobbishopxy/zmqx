@@ -1,0 +1,91 @@
+cabal-version:   3.0
+name:            zmqx
+version:         0.1.0.0
+synopsis:        zmq haskell
+description:     zmq haskell
+license:         BSD-3-Clause
+license-file:    LICENSE
+author:          jacobxy
+maintainer:      jacobbishopxy@gmail.com
+copyright:       (c) Jacob Xie 2025
+build-type:      Simple
+extra-doc-files: CHANGELOG.md
+
+common warnings
+  ghc-options: -Wall
+
+library
+  import:             warnings
+  exposed-modules:    Zmqx
+  other-modules:
+    Zmqx.Internal
+    Zmqx.Internal.Bindings
+    Zmqx.Internal.Bindings.Constants
+    Zmqx.Internal.Bindings.Functions
+    Zmqx.Internal.Bindings.Types
+    Zmqx.Internal.Bindings.ZConstants
+    Zmqx.Internal.Functions
+    Zmqx.Internal.Types
+
+  build-depends:
+    , array
+    , base        ^>=4.20.0.0
+    , base64
+    , bytestring
+    , containers
+    , primitive
+    , random
+    , text
+    , text-short
+
+  build-tool-depends: hsc2hs:hsc2hs
+  default-extensions:
+    BlockArguments
+    CApiFFI
+    DerivingStrategies
+    InterruptibleFFI
+    PatternSynonyms
+    ViewPatterns
+
+  ghc-options:
+    -Weverything -Wno-all-missed-specialisations -Wno-implicit-prelude
+    -Wno-missed-specialisations -Wno-missing-import-lists -Wno-safe
+    -Wno-unsafe -Wno-missing-kind-signatures
+
+  default-extensions: Unsafe
+  hs-source-dirs:     lib
+  include-dirs:       lib/c
+  includes:
+    utils.c
+    zmq-wrapper.h
+
+  c-sources:
+    lib/c/utils.c
+    lib/c/zmq-wrapper.c
+
+  default-language:   GHC2024
+
+  if os(windows)
+    extra-libraries: zmq
+
+  else
+    pkgconfig-depends: libzmq >=4.0 && <5.0
+
+test-suite zmqx-test
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Main.hs
+  build-depends:    base ^>=4.20.0.0
+
+executable oops
+  import:           warnings
+  main-is:          Main.hs
+  build-depends:
+  build-depends:
+    , base  ^>=4.20.0.0
+    , zmqx
+
+  hs-source-dirs:   app
+  default-language: GHC2024

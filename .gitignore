@@ -21,3 +21,10 @@ cabal.project.local
 cabal.project.local~
 .HTF/
 .ghc.environment.*
+<<<<<<< HEAD
+=======
+
+.vscode
+tmp
+data
+>>>>>>> a39f029 (🎉 Init)

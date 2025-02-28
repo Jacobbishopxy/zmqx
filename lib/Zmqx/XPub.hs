@@ -23,11 +23,11 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
-import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, Socket (..))
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError)
 import Zmqx.Internal
 
 -- | A thread-safe __xpublisher__ socket.
@@ -48,6 +48,9 @@ instance CanReceives XPub where
 
 instance CanSend XPub where
   send_ = send
+
+instance CanSends XPub where
+  sends_ = sends
 
 defaultOptions :: Options XPub
 defaultOptions =

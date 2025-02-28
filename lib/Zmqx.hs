@@ -30,6 +30,7 @@ module Zmqx
 
     -- ** Messaging
     send,
+    sends,
     receive,
     receives,
 
@@ -75,6 +76,7 @@ module Zmqx
 
     -- * Socket subclasses
     Socket.CanSend,
+    Socket.CanSends,
     Socket.CanReceive,
     Socket.CanReceives,
     CanPoll,
@@ -113,6 +115,10 @@ import Zmqx.XSub (XSub)
 send :: (Socket.CanSend socket) => socket -> ByteString -> IO (Either Error ())
 send =
   Socket.send_
+
+sends :: (Socket.CanSends socket) => socket -> [ByteString] -> IO (Either Error ())
+sends =
+  Socket.sends_
 
 receive :: (Socket.CanReceive socket) => socket -> IO (Either Error ByteString)
 receive =

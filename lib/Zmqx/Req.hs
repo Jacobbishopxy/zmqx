@@ -21,13 +21,13 @@ import Data.ByteString (ByteString)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
-import Zmqx.Internal
 import Numeric.Natural (Natural)
-import Zmqx.Error (Error (..), catchingOkErrors)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, Socket (..))
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Error (Error (..), catchingOkErrors)
+import Zmqx.Internal
 
 -- | A __requester__ socket.
 --
@@ -39,6 +39,9 @@ instance Options.CanSetSendQueueSize Req
 
 instance CanSend Req where
   send_ = send
+
+instance CanSends Req where
+  sends_ = sends
 
 instance CanReceive Req where
   receive_ = receive

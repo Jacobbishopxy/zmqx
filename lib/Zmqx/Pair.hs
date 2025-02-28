@@ -22,13 +22,13 @@ import Control.Monad (when)
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
-import Zmqx.Internal
 import Numeric.Natural (Natural)
-import Zmqx.Error (Error (..), catchingOkErrors)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, Socket (..))
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Error (Error (..), catchingOkErrors)
+import Zmqx.Internal
 
 -- | A thread-safe __pair__ socket.
 --
@@ -40,6 +40,9 @@ instance Options.CanSetSendQueueSize Pair
 
 instance CanSend Pair where
   send_ = send
+
+instance CanSends Pair where
+  sends_ = sends
 
 instance CanReceive Pair where
   receive_ = receive

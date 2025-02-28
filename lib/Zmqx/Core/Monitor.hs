@@ -18,11 +18,11 @@ import Data.Text.Short qualified as Text.Short
 import Data.Word (Word8)
 import Foreign.C (CInt, Errno)
 import System.Random qualified as Random
-import Zmqx.Error (Error (..), catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Socket qualified as Socket
-import Zmqx.Pair qualified as Pair
+import Zmqx.Error (Error (..), catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Internal
+import Zmqx.Pair qualified as Pair
 
 -- Generate a random 16-byte bytestring
 generateRandomBytes :: Int -> IO Text

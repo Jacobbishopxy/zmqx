@@ -6,6 +6,7 @@ module Zmqx.Core.Socket
   ( Socket (..),
     Extra (..),
     CanSend (..),
+    CanSends (..),
     CanReceive (..),
     CanReceives (..),
     openSocket,
@@ -102,6 +103,10 @@ data Extra (a :: Symbol) where
 class CanSend a where
   send_ :: a -> ByteString -> IO (Either Error ())
   send_ = undefined -- hide "minimal complete definition" haddock
+
+class CanSends a where
+  sends_ :: a -> [ByteString] -> IO (Either Error ())
+  sends_ = undefined -- hide "minimal complete definition" haddock
 
 class CanReceive a where
   receive_ :: a -> IO (Either Error ByteString)

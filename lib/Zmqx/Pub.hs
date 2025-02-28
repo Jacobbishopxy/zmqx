@@ -21,11 +21,11 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
-import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Socket (CanSend, Socket (..))
+import Zmqx.Core.Socket (CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError)
 import Zmqx.Internal
 
 -- | A thread-safe __publisher__ socket.
@@ -40,6 +40,9 @@ instance Options.CanSetSendQueueSize Pub
 
 instance CanSend Pub where
   send_ = send
+
+instance CanSends Pub where
+  sends_ = sends
 
 defaultOptions :: Options Pub
 defaultOptions =

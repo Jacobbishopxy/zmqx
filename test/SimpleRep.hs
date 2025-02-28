@@ -8,6 +8,7 @@
 
 module Main where
 
+import Common (endpoint, unwrap)
 import Control.Concurrent (threadDelay)
 import Control.Exception (throwIO)
 import Control.Monad (forever)
@@ -19,16 +20,10 @@ main =
   Zmqx.run Zmqx.defaultOptions do
     -- Socket to talk to clients
     responder <- unwrap (Zmqx.Rep.open (Zmqx.name "responder"))
-    unwrap (Zmqx.bind responder "tcp://*:5555")
+    unwrap (Zmqx.bind responder endpoint)
 
     forever do
       _ <- unwrap (Zmqx.receive responder)
       putStrLn "Received Hello"
       threadDelay 1_000_000 -- Do some work
       unwrap (Zmqx.send responder "World")
-
-unwrap :: IO (Either Zmqx.Error a) -> IO a
-unwrap action =
-  action >>= \case
-    Left err -> throwIO err
-    Right value -> pure value

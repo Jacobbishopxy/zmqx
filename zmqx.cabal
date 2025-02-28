@@ -100,8 +100,10 @@ test-suite test-simple-req
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          SimpleReq.hs
+  other-modules:    Common
   build-depends:
     , base  ^>=4.20.0.0
+    , text
     , zmqx
 
 test-suite test-simple-rep
@@ -110,6 +112,33 @@ test-suite test-simple-rep
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          SimpleRep.hs
+  other-modules:    Common
   build-depends:
     , base  ^>=4.20.0.0
+    , text
+    , zmqx
+
+test-suite test-simple-dealer
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimpleDealer.hs
+  other-modules:    Common
+  build-depends:
+    , base        ^>=4.20.0.0
+    , bytestring
+    , text
+    , zmqx
+
+test-suite test-simple-router
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimpleRouter.hs
+  other-modules:    Common
+  build-depends:
+    , base  ^>=4.20.0.0
+    , text
     , zmqx

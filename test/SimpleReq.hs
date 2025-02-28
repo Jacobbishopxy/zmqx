@@ -8,6 +8,7 @@
 
 module Main where
 
+import Common (endpoint, unwrap)
 import Control.Exception (throwIO)
 import Data.Foldable (for_)
 import Text.Printf (printf)
@@ -21,16 +22,10 @@ main =
     do
       putStrLn "Connecting to hello world server..."
       requester <- unwrap (Zmqx.Req.open (Zmqx.name "requester"))
-      unwrap (Zmqx.connect requester "tcp://localhost:5555")
+      unwrap (Zmqx.connect requester endpoint)
 
       for_ [(0 :: Int) .. 9] \requestNbr -> do
         printf "Sending Hello %d...\n" requestNbr
         unwrap (Zmqx.send requester "Hello")
         _ <- unwrap (Zmqx.receive requester)
         printf "Received World %d\n" requestNbr
-
-unwrap :: IO (Either Zmqx.Error a) -> IO a
-unwrap action =
-  action >>= \case
-    Left err -> throwIO err
-    Right value -> pure value

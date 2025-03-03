@@ -11,11 +11,20 @@ copyright:       (c) Jacob Xie 2025
 build-type:      Simple
 extra-doc-files: CHANGELOG.md
 
+flag debug
+  description: Enable debug output
+  default:     False
+  manual:      True
+
 common warnings
   ghc-options: -Wall
 
+common debug-flag
+  if flag(debug)
+    cpp-options: -DZMQX_DEBUG
+
 library
-  import:             warnings
+  import:             warnings, debug-flag
   exposed-modules:
     Zmqx
     Zmqx.Dealer
@@ -111,7 +120,7 @@ test-suite test-version
     , zmqx
 
 test-suite test-simple-req
-  import:           warnings
+  import:           warnings, debug-flag
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -123,7 +132,7 @@ test-suite test-simple-req
     , zmqx
 
 test-suite test-simple-rep
-  import:           warnings
+  import:           warnings, debug-flag
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -135,7 +144,7 @@ test-suite test-simple-rep
     , zmqx
 
 test-suite test-simple-dealer
-  import:           warnings
+  import:           warnings, debug-flag
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -148,7 +157,7 @@ test-suite test-simple-dealer
     , zmqx
 
 test-suite test-simple-router
-  import:           warnings
+  import:           warnings, debug-flag
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -160,7 +169,7 @@ test-suite test-simple-router
     , zmqx
 
 test-suite test-simple-pub
-  import:           warnings
+  import:           warnings, debug-flag
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -174,7 +183,7 @@ test-suite test-simple-pub
     , zmqx
 
 test-suite test-simple-sub
-  import:           warnings
+  import:           warnings, debug-flag
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test

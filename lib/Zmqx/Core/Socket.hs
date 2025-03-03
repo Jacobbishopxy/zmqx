@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-missing-role-annotations #-}
@@ -566,12 +567,14 @@ zhs_frame frame = do
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Debugging utils
---
--- TODO make these context/socket options
--- debug :: (Text -> IO ()) -> Options a
 
+-- Define debug as a compile-time constant
 debug :: Bool
+#ifdef ZMQX_DEBUG
+debug = True
+#else
 debug = False
+#endif
 
 debuglock :: MVar ()
 debuglock =

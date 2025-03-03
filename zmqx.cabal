@@ -94,6 +94,22 @@ library
   else
     pkgconfig-depends: libzmq >=4.0 && <5.0
 
+------------------------------------------------------------------------------------------------
+-- TEST CASES
+------------------------------------------------------------------------------------------------
+
+test-suite test-version
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          Version.hs
+  other-modules:    Common
+  build-depends:
+    , base  ^>=4.20.0.0
+    , text
+    , zmqx
+
 test-suite test-simple-req
   import:           warnings
   default-language: GHC2024
@@ -140,5 +156,33 @@ test-suite test-simple-router
   other-modules:    Common
   build-depends:
     , base  ^>=4.20.0.0
+    , text
+    , zmqx
+
+test-suite test-simple-pub
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimplePub.hs
+  other-modules:    Common
+  build-depends:
+    , base        ^>=4.20.0.0
+    , bytestring
+    , random
+    , text
+    , zmqx
+
+test-suite test-simple-sub
+  import:           warnings
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimpleSub.hs
+  other-modules:    Common
+  build-depends:
+    , base        ^>=4.20.0.0
+    , bytestring
+    , random
     , text
     , zmqx

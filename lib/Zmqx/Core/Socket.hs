@@ -571,7 +571,7 @@ zhs_frame frame = do
 -- debug :: (Text -> IO ()) -> Options a
 
 debug :: Bool
-debug = True
+debug = False
 
 debuglock :: MVar ()
 debuglock =

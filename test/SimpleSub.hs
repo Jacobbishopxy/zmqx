@@ -9,12 +9,10 @@
 module Main where
 
 import Common (endpoint, unwrap)
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever, replicateM, replicateM_, when)
+import Control.Monad (replicateM)
 import Data.ByteString.Char8 qualified as ByteString.Char8
 import Data.Functor ((<&>))
 import System.Environment (getArgs)
-import System.Random.Stateful (globalStdGen, uniformRM)
 import Text.Printf (printf)
 import Zmqx
 import Zmqx.Sub
@@ -28,16 +26,19 @@ main =
     unwrap (Zmqx.connect subscriber endpoint)
 
     -- Subscribe to zipcode, default is NYC, 10001
-    filter <-
+    ft <-
       getArgs <&> \case
         [] -> "10001 "
-        filter : _ -> filter
-    unwrap (Zmqx.Sub.subscribe subscriber (ByteString.Char8.pack filter))
+        ft : _ -> ft
+    unwrap (Zmqx.Sub.subscribe subscriber (ByteString.Char8.pack ft))
 
     -- Process 100 updates
     temps <-
       replicateM 100 do
         string <- unwrap (Zmqx.receive subscriber)
-        let [_zipcode :: Int, temperature, _relhumidity] = map read (words (ByteString.Char8.unpack string))
+        let parsedWords = map read (words (ByteString.Char8.unpack string))
+        let temperature = case parsedWords of
+              (_zipcode :: Int) : temp : _relhumidity : _ -> temp
+              _ -> error "Unexpected format: could not parse temperature data"
         pure (realToFrac @Int @Double temperature)
-    printf "Average temperature for zipcode '%s' was %dF\n" filter (floor (sum temps / 100) :: Int)
+    printf "Average temperature for zipcode '%s' was %dF\n" ft (floor (sum temps / 100) :: Int)

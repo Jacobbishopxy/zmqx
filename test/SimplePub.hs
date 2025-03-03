@@ -9,7 +9,6 @@
 module Main where
 
 import Common (endpoint, unwrap)
-import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Data.ByteString.Char8 qualified as ByteString.Char8
 import System.Random.Stateful (globalStdGen, uniformRM)
@@ -32,5 +31,3 @@ main = do
       -- Send message to all subscribers
       let update = ByteString.Char8.pack (printf "%05d %d %d" zipcode temperature relhumidity)
       unwrap (Zmqx.send publisher update)
-
--- threadDelay 1_000_000 -- Do some work

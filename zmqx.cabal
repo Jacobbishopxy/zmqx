@@ -23,6 +23,9 @@ common debug-flag
   if flag(debug)
     cpp-options: -DZMQX_DEBUG
 
+common test-common
+  other-modules: Common
+
 library
   import:             warnings, debug-flag
   exposed-modules:
@@ -113,14 +116,13 @@ test-suite test-version
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          Version.hs
-  other-modules:    Common
   build-depends:
     , base  ^>=4.20.0.0
     , text
     , zmqx
 
 test-suite test-simple-req
-  import:           warnings, debug-flag
+  import:           warnings, debug-flag, test-common
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -132,7 +134,7 @@ test-suite test-simple-req
     , zmqx
 
 test-suite test-simple-rep
-  import:           warnings, debug-flag
+  import:           warnings, debug-flag, test-common
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -144,7 +146,7 @@ test-suite test-simple-rep
     , zmqx
 
 test-suite test-simple-dealer
-  import:           warnings, debug-flag
+  import:           warnings, debug-flag, test-common
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -157,7 +159,7 @@ test-suite test-simple-dealer
     , zmqx
 
 test-suite test-simple-router
-  import:           warnings, debug-flag
+  import:           warnings, debug-flag, test-common
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -169,7 +171,7 @@ test-suite test-simple-router
     , zmqx
 
 test-suite test-simple-pub
-  import:           warnings, debug-flag
+  import:           warnings, debug-flag, test-common
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
@@ -183,7 +185,7 @@ test-suite test-simple-pub
     , zmqx
 
 test-suite test-simple-sub
-  import:           warnings, debug-flag
+  import:           warnings, debug-flag, test-common
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test

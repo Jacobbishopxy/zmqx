@@ -16,18 +16,20 @@ flag debug
   default:     False
   manual:      True
 
-common warnings
-  ghc-options: -Wall
+common shared-properties
+  default-language: GHC2024
+  build-depends:    base >=4 && <5
+  ghc-options:      -Wall
 
-common debug-flag
   if flag(debug)
     cpp-options: -DZMQX_DEBUG
 
-common test-common
-  other-modules: Common
+------------------------------------------------------------------------------------------------
+-- Lib
+------------------------------------------------------------------------------------------------
 
 library
-  import:             warnings, debug-flag
+  import:             shared-properties
   exposed-modules:
     Zmqx
     Zmqx.Dealer
@@ -98,8 +100,6 @@ library
     lib/c/utils.c
     lib/c/zmq-wrapper.c
 
-  default-language:   GHC2024
-
   if os(windows)
     extra-libraries: zmq
 
@@ -111,88 +111,76 @@ library
 ------------------------------------------------------------------------------------------------
 
 test-suite test-version
-  import:           warnings
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          Version.hs
+  import:         shared-properties
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Version.hs
   build-depends:
-    , base  ^>=4.20.0.0
     , text
     , zmqx
 
 test-suite test-simple-req
-  import:           warnings, debug-flag, test-common
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleReq.hs
-  other-modules:    Common
+  import:         shared-properties
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        SimpleReq.hs
+  other-modules:  Common
   build-depends:
-    , base  ^>=4.20.0.0
     , text
     , zmqx
 
 test-suite test-simple-rep
-  import:           warnings, debug-flag, test-common
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleRep.hs
-  other-modules:    Common
+  import:         shared-properties
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        SimpleRep.hs
+  other-modules:  Common
   build-depends:
-    , base  ^>=4.20.0.0
     , text
     , zmqx
 
 test-suite test-simple-dealer
-  import:           warnings, debug-flag, test-common
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleDealer.hs
-  other-modules:    Common
+  import:         shared-properties
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        SimpleDealer.hs
+  other-modules:  Common
   build-depends:
-    , base        ^>=4.20.0.0
     , bytestring
     , text
     , zmqx
 
 test-suite test-simple-router
-  import:           warnings, debug-flag, test-common
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleRouter.hs
-  other-modules:    Common
+  import:         shared-properties
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        SimpleRouter.hs
+  other-modules:  Common
   build-depends:
-    , base  ^>=4.20.0.0
     , text
     , zmqx
 
 test-suite test-simple-pub
-  import:           warnings, debug-flag, test-common
+  import:           shared-properties
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          SimplePub.hs
   other-modules:    Common
   build-depends:
-    , base        ^>=4.20.0.0
     , bytestring
     , random
     , text
     , zmqx
 
 test-suite test-simple-sub
-  import:           warnings, debug-flag, test-common
+  import:           shared-properties
   default-language: GHC2024
   type:             exitcode-stdio-1.0
   hs-source-dirs:   test
   main-is:          SimpleSub.hs
   other-modules:    Common
   build-depends:
-    , base        ^>=4.20.0.0
     , bytestring
     , random
     , text

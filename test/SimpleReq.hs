@@ -9,7 +9,6 @@
 module Main where
 
 import Common (endpoint, unwrap)
-import Control.Exception (throwIO)
 import Data.Foldable (for_)
 import Text.Printf (printf)
 import Zmqx

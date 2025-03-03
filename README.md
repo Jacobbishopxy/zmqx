@@ -27,3 +27,11 @@ cabal test test-simple-dealer --flag debug
 # build
 cabal build --flag debug
 ```
+
+## Example
+
+- [Simple Req](./test/SimpleReq.hs) + [Simple Rep](./test/SimpleRep.hs)
+
+- [Simple Dealer](./test/SimpleDealer.hs) + [Simple Router](./test/SimpleRouter.hs)
+
+- [Simpl Pub](./test/SimplePub.hs) + [Simple Sub](./test/SimpleSub.hs)

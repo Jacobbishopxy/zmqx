@@ -10,7 +10,6 @@ module Main where
 
 import Common (endpoint, unwrap)
 import Control.Concurrent (threadDelay)
-import Control.Exception (throwIO)
 import Control.Monad (forever)
 import Zmqx
 import Zmqx.Rep

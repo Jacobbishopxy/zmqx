@@ -35,3 +35,5 @@ cabal build --flag debug
 - [Simple Dealer](./test/SimpleDealer.hs) + [Simple Router](./test/SimpleRouter.hs)
 
 - [Simpl Pub](./test/SimplePub.hs) + [Simple Sub](./test/SimpleSub.hs)
+
+- [Task Ventilator (PUSH)](./test/TaskVentilator.hs) -> [Task Worker (PULL + PUSH)](./test/TaskWorker.hs) -> [Task Sink (PULL)](./test/TaskSink.hs)

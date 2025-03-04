@@ -7,6 +7,8 @@
 
 module Common
   ( endpoint,
+    endpoint1,
+    endpoint2,
     unwrap,
   )
 where
@@ -17,6 +19,12 @@ import Zmqx
 
 endpoint :: Text
 endpoint = "tcp://127.0.0.1:5555"
+
+endpoint1 :: Text
+endpoint1 = "tcp://127.0.0.1:5556"
+
+endpoint2 :: Text
+endpoint2 = "tcp://127.0.0.1:5557"
 
 ----------------------------------------------------------------------------------------------------
 

@@ -185,3 +185,42 @@ test-suite test-simple-sub
     , random
     , text
     , zmqx
+
+test-suite test-task-ventilator
+  import:           shared-properties
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          TaskVentilator.hs
+  other-modules:    Common
+  build-depends:
+    , bytestring
+    , random
+    , text
+    , zmqx
+
+test-suite test-task-worker
+  import:           shared-properties
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          TaskWorker.hs
+  other-modules:    Common
+  build-depends:
+    , bytestring
+    , random
+    , text
+    , zmqx
+
+test-suite test-task-sink
+  import:           shared-properties
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          TaskSink.hs
+  other-modules:    Common
+  build-depends:
+    , bytestring
+    , random
+    , text
+    , zmqx

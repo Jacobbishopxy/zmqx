@@ -119,6 +119,9 @@ test-suite test-version
     , text
     , zmqx
 
+------------------------------------------------------------------------------------------------
+-- req -> rep
+
 test-suite test-simple-req
   import:         shared-properties
   type:           exitcode-stdio-1.0
@@ -138,6 +141,9 @@ test-suite test-simple-rep
   build-depends:
     , text
     , zmqx
+
+------------------------------------------------------------------------------------------------
+-- dealer -> router
 
 test-suite test-simple-dealer
   import:         shared-properties
@@ -159,6 +165,9 @@ test-suite test-simple-router
   build-depends:
     , text
     , zmqx
+
+------------------------------------------------------------------------------------------------
+-- pub -> sub
 
 test-suite test-simple-pub
   import:           shared-properties
@@ -185,6 +194,9 @@ test-suite test-simple-sub
     , random
     , text
     , zmqx
+
+------------------------------------------------------------------------------------------------
+-- ventilator -> worker[] -> sink
 
 test-suite test-task-ventilator
   import:           shared-properties
@@ -222,5 +234,19 @@ test-suite test-task-sink
   build-depends:
     , bytestring
     , random
+    , text
+    , zmqx
+
+------------------------------------------------------------------------------------------------
+-- items + poll
+
+test-suite test-items-poll
+  import:           shared-properties
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          ItemsPoll.hs
+  other-modules:    Common
+  build-depends:
     , text
     , zmqx

@@ -33,6 +33,7 @@ library
   exposed-modules:
     Zmqx
     Zmqx.Dealer
+    Zmqx.Options
     Zmqx.Pair
     Zmqx.Pub
     Zmqx.Pull
@@ -129,6 +130,7 @@ test-suite test-simple-req
   main-is:        SimpleReq.hs
   other-modules:  Common
   build-depends:
+    , bytestring
     , text
     , zmqx
 

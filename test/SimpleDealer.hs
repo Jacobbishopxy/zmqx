@@ -23,7 +23,7 @@ main =
     do
       putStrLn "Connecting to hello world server..."
       dealer <- unwrap (Zmqx.Dealer.open (Zmqx.name "dealer"))
-
+      _ <- Zmqx.setSocketOpt dealer (Zmqx.RoutingId "xy-dealer")
       unwrap (Zmqx.connect dealer endpoint)
 
       for_ [(0 :: Int) .. 9] \num -> do

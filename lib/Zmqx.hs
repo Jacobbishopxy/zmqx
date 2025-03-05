@@ -70,6 +70,10 @@ module Zmqx
     Options.Options,
     Options.defaultOptions,
 
+    -- * Opt
+    Opt.SocketOpt (..),
+    Opt.setSocketOpt,
+
     -- * Errors
     Error (..),
     Zmq_error (..),
@@ -100,6 +104,7 @@ import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Dealer (Dealer)
 import Zmqx.Error (Error (..))
 import Zmqx.Internal
+import Zmqx.Options qualified as Opt
 import Zmqx.Pair (Pair)
 import Zmqx.Pub (Pub)
 import Zmqx.Pull (Pull)

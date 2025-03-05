@@ -9,16 +9,12 @@
 module Main where
 
 import Common (endpoint2, unwrap)
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
-import Data.ByteString.Char8 qualified as ByteString.Char8
 import Data.Foldable (for_)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
 import Zmqx
 import Zmqx.Pull
-import Zmqx.Push
 
 main :: IO ()
 main = do

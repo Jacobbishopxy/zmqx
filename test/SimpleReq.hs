@@ -9,6 +9,7 @@
 module Main where
 
 import Common (endpoint, unwrap)
+import Data.ByteString.Char8 qualified as ByteString.Char8
 import Data.Foldable (for_)
 import Text.Printf (printf)
 import Zmqx
@@ -26,5 +27,5 @@ main =
       for_ [(0 :: Int) .. 9] \requestNbr -> do
         printf "Sending Hello %d...\n" requestNbr
         unwrap (Zmqx.send requester "Hello")
-        _ <- unwrap (Zmqx.receive requester)
-        printf "Received World %d\n" requestNbr
+        string <- unwrap (Zmqx.receive requester)
+        printf "Received reply %d [%s]\n" requestNbr (ByteString.Char8.unpack string)

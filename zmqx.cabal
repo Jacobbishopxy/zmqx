@@ -250,3 +250,31 @@ test-suite test-items-poll
   build-depends:
     , text
     , zmqx
+
+------------------------------------------------------------------------------------------------
+-- routing <-> dealer, broker
+
+test-suite test-simple-broker
+  import:           shared-properties
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimpleBroker.hs
+  other-modules:    Common
+  build-depends:
+    , text
+    , zmqx
+
+------------------------------------------------------------------------------------------------
+-- XPub + XSub, proxy
+
+test-suite test-simple-proxy
+  import:           shared-properties
+  default-language: GHC2024
+  type:             exitcode-stdio-1.0
+  hs-source-dirs:   test
+  main-is:          SimpleProxy.hs
+  other-modules:    Common
+  build-depends:
+    , text
+    , zmqx

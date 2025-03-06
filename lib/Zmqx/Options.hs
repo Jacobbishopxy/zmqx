@@ -16,21 +16,27 @@ import Zmqx.Core.Socket
 import Zmqx.Internal
 
 data SocketOpt
-  = RoutingId ByteString
-  | SndTimeO Int32
-  | RcvTimeO Int32
-  | SndHWM Int32
-  | RcvHWM Int32
-  | Sbc ByteString
-  | USbc ByteString
+  = Z_RoutingId ByteString
+  | Z_Rate Int32
+  | Z_SndBuf Int32
+  | Z_RcvBuf Int32
+  | Z_SndTimeO Int32
+  | Z_RcvTimeO Int32
+  | Z_SndHWM Int32
+  | Z_RcvHWM Int32
+  | Z_Sbc ByteString
+  | Z_USbc ByteString
 
 setSocketOpt :: Socket a -> SocketOpt -> IO ()
 setSocketOpt Socket {zsocket} opt =
   case opt of
-    RoutingId ri -> setSocketOptions zsocket (sockopt ZMQ_ROUTING_ID ri)
-    SndTimeO t -> setSocketOptions zsocket (sockopt ZMQ_SNDTIMEO t)
-    RcvTimeO t -> setSocketOptions zsocket (sockopt ZMQ_RCVTIMEO t)
-    SndHWM h -> setSocketOptions zsocket (sockopt ZMQ_SNDHWM h)
-    RcvHWM h -> setSocketOptions zsocket (sockopt ZMQ_RCVHWM h)
-    Sbc t -> setSocketOptions zsocket (sockopt ZMQ_SUBSCRIBE t)
-    USbc t -> setSocketOptions zsocket (sockopt ZMQ_UNSUBSCRIBE t)
+    Z_RoutingId ri -> setSocketOptions zsocket (sockopt ZMQ_ROUTING_ID ri)
+    Z_Rate r -> setSocketOptions zsocket (sockopt ZMQ_RATE r)
+    Z_SndBuf t -> setSocketOptions zsocket (sockopt ZMQ_SNDBUF t)
+    Z_RcvBuf t -> setSocketOptions zsocket (sockopt ZMQ_RCVBUF t)
+    Z_SndTimeO t -> setSocketOptions zsocket (sockopt ZMQ_SNDTIMEO t)
+    Z_RcvTimeO t -> setSocketOptions zsocket (sockopt ZMQ_RCVTIMEO t)
+    Z_SndHWM h -> setSocketOptions zsocket (sockopt ZMQ_SNDHWM h)
+    Z_RcvHWM h -> setSocketOptions zsocket (sockopt ZMQ_RCVHWM h)
+    Z_Sbc t -> setSocketOptions zsocket (sockopt ZMQ_SUBSCRIBE t)
+    Z_USbc t -> setSocketOptions zsocket (sockopt ZMQ_UNSUBSCRIBE t)

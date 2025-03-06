@@ -15,6 +15,7 @@ import Data.Foldable (for_)
 import Text.Printf (printf)
 import Zmqx
 import Zmqx.Dealer
+import Zmqx.Options qualified as Zmqx
 
 main :: IO ()
 main =
@@ -23,7 +24,7 @@ main =
     do
       putStrLn "Connecting to hello world server..."
       dealer <- unwrap (Zmqx.Dealer.open (Zmqx.name "dealer"))
-      _ <- Zmqx.setSocketOpt dealer (Zmqx.RoutingId "xy-dealer")
+      _ <- Zmqx.setSocketOpt dealer (Zmqx.Z_RoutingId "xy-dealer")
       unwrap (Zmqx.connect dealer endpoint)
 
       for_ [(0 :: Int) .. 9] \num -> do

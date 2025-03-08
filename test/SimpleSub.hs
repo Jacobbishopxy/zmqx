@@ -1,5 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 
 -- file: SimpleSub.hs
 -- author: Jacob Xie

@@ -1,6 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- file: SimpleProxy.hs
 -- author: Jacob Xie
 -- date: 2025/03/05 10:58:44 Wednesday

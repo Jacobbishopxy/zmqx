@@ -24,6 +24,17 @@ common shared-properties
   if flag(debug)
     cpp-options: -DZMQX_DEBUG
 
+common test-properties
+  other-modules:      Common
+  hs-source-dirs:     test
+  build-depends:
+    , text
+    , zmqx
+
+  default-extensions:
+    BlockArguments
+    OverloadedStrings
+
 ------------------------------------------------------------------------------------------------
 -- Lib
 ------------------------------------------------------------------------------------------------
@@ -112,171 +123,115 @@ library
 ------------------------------------------------------------------------------------------------
 
 test-suite test-version
-  import:         shared-properties
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        Version.hs
-  build-depends:
-    , text
-    , zmqx
+  import:  shared-properties, test-properties
+  type:    exitcode-stdio-1.0
+  main-is: Version.hs
 
 ------------------------------------------------------------------------------------------------
--- req -> rep
+-- Req -> Rep
 
 test-suite test-simple-req
-  import:         shared-properties
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        SimpleReq.hs
-  other-modules:  Common
-  build-depends:
-    , bytestring
-    , text
-    , zmqx
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimpleReq.hs
+  build-depends: bytestring
 
 test-suite test-simple-rep
-  import:         shared-properties
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        SimpleRep.hs
-  other-modules:  Common
-  build-depends:
-    , text
-    , zmqx
+  import:  shared-properties, test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleRep.hs
 
 ------------------------------------------------------------------------------------------------
--- dealer -> router
+-- Dealer -> Router
 
 test-suite test-simple-dealer
-  import:         shared-properties
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        SimpleDealer.hs
-  other-modules:  Common
-  build-depends:
-    , bytestring
-    , text
-    , zmqx
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimpleDealer.hs
+  build-depends: bytestring
 
 test-suite test-simple-router
-  import:         shared-properties
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        SimpleRouter.hs
-  other-modules:  Common
-  build-depends:
-    , text
-    , zmqx
+  import:  shared-properties, test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleRouter.hs
 
 ------------------------------------------------------------------------------------------------
--- pub -> sub
+-- Pub -> Sub
 
 test-suite test-simple-pub
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimplePub.hs
-  other-modules:    Common
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimplePub.hs
   build-depends:
     , bytestring
     , random
-    , text
-    , zmqx
 
 test-suite test-simple-sub
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleSub.hs
-  other-modules:    Common
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimpleSub.hs
   build-depends:
     , bytestring
     , random
-    , text
-    , zmqx
 
 ------------------------------------------------------------------------------------------------
 -- ventilator -> worker[] -> sink
 
 test-suite test-task-ventilator
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          TaskVentilator.hs
-  other-modules:    Common
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskVentilator.hs
   build-depends:
     , bytestring
     , random
-    , text
-    , zmqx
 
 test-suite test-task-worker
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          TaskWorker.hs
-  other-modules:    Common
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskWorker.hs
   build-depends:
     , bytestring
     , random
-    , text
-    , zmqx
 
 test-suite test-task-sink
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          TaskSink.hs
-  other-modules:    Common
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskSink.hs
   build-depends:
     , bytestring
     , random
-    , text
-    , zmqx
 
 ------------------------------------------------------------------------------------------------
 -- items + poll
 
 test-suite test-items-poll
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          ItemsPoll.hs
-  other-modules:    Common
-  build-depends:
-    , text
-    , zmqx
+  import:  shared-properties, test-properties
+  type:    exitcode-stdio-1.0
+  main-is: ItemsPoll.hs
 
 ------------------------------------------------------------------------------------------------
--- routing <-> dealer, broker
+-- Router <-> Dealer, broker
 
 test-suite test-simple-broker
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleBroker.hs
-  other-modules:    Common
-  build-depends:
-    , text
-    , zmqx
+  import:  shared-properties, test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleBroker.hs
 
 ------------------------------------------------------------------------------------------------
 -- XPub + XSub, proxy
 
 test-suite test-simple-proxy
-  import:           shared-properties
-  default-language: GHC2024
-  type:             exitcode-stdio-1.0
-  hs-source-dirs:   test
-  main-is:          SimpleProxy.hs
-  other-modules:    Common
+  import:  shared-properties, test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleProxy.hs
+
+------------------------------------------------------------------------------------------------
+-- Router -> Dealer (inproc) -> Rep[] (inproc)
+
+test-suite test-mut-worker
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       MutWorker.hs
   build-depends:
-    , text
-    , zmqx
+    , bytestring
+    , ki

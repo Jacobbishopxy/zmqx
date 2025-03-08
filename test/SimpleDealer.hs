@@ -1,6 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- file: SimpleDealer.hs
 -- author: Jacob Xie
 -- date: 2025/02/28 11:07:36 Friday
@@ -15,7 +12,6 @@ import Data.Foldable (for_)
 import Text.Printf (printf)
 import Zmqx
 import Zmqx.Dealer
-import Zmqx.Options qualified as Zmqx
 
 main :: IO ()
 main =

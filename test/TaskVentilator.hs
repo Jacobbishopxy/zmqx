@@ -1,6 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- file: TaskVentilator.hs
 -- author: Jacob Xie
 -- date: 2025/03/04 13:24:58 Tuesday

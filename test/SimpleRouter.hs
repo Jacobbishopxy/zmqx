@@ -1,5 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 
 -- file: SimpleRouter.hs
 -- author: Jacob Xie

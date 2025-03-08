@@ -1,6 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- file: ItemsPoll.hs
 -- author: Jacob Xie
 -- date: 2025/03/04 22:56:19 Tuesday

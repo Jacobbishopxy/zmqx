@@ -24,8 +24,8 @@ data SocketOpt
   | Z_RcvTimeO Int32
   | Z_SndHWM Int32
   | Z_RcvHWM Int32
-  | Z_Sbc ByteString
-  | Z_USbc ByteString
+  | Z_Subscribe ByteString
+  | Z_Unsubscribe ByteString
 
 setSocketOpt :: Socket a -> SocketOpt -> IO ()
 setSocketOpt Socket {zsocket} opt =
@@ -38,5 +38,5 @@ setSocketOpt Socket {zsocket} opt =
     Z_RcvTimeO t -> setSocketOptions zsocket (sockopt ZMQ_RCVTIMEO t)
     Z_SndHWM h -> setSocketOptions zsocket (sockopt ZMQ_SNDHWM h)
     Z_RcvHWM h -> setSocketOptions zsocket (sockopt ZMQ_RCVHWM h)
-    Z_Sbc t -> setSocketOptions zsocket (sockopt ZMQ_SUBSCRIBE t)
-    Z_USbc t -> setSocketOptions zsocket (sockopt ZMQ_UNSUBSCRIBE t)
+    Z_Subscribe t -> setSocketOptions zsocket (sockopt ZMQ_SUBSCRIBE t)
+    Z_Unsubscribe t -> setSocketOptions zsocket (sockopt ZMQ_UNSUBSCRIBE t)

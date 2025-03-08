@@ -1,5 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 
 -- file: SimpleWorker.hs
 -- author: Jacob Xie

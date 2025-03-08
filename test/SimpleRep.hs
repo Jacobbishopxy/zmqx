@@ -1,6 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- file: SimpleRep.hs
 -- author: Jacob Xie
 -- date: 2025/02/27 15:19:31 Thursday

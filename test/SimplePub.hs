@@ -1,5 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 
 -- file: SimplePub.hs
 -- author: Jacob Xie

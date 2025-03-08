@@ -1,5 +1,4 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
+
 
 -- file: TaskSink.hs
 -- author: Jacob Xie

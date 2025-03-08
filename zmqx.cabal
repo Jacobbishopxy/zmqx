@@ -235,3 +235,14 @@ test-suite test-mut-worker
   build-depends:
     , bytestring
     , ki
+
+------------------------------------------------------------------------------------------------
+-- Router (ipc) -> Router (ipc)
+
+test-suite test-lb-worker
+  import:        shared-properties, test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       LBWorker.hs
+  build-depends:
+    , bytestring
+    , ki

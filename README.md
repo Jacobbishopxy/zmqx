@@ -15,7 +15,7 @@ Support `base ^>=4.20.0.0`
 source-repository-package
   type: git
   location: git@github.com:Jacobbishopxy/zmqx.git
-  tag: 7a11dafaed3265bbeaa041395fa88ddb09e89ee0
+  tag: 3725a3c5ed03389071a5eef827ca1d0a12db5039
 ```
 
 ## Test & Build

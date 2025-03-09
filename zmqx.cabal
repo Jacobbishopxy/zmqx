@@ -10,6 +10,11 @@ maintainer:         jacobbishopxy@gmail.com
 copyright:          (c) Jacob Xie 2025
 build-type:         Simple
 extra-doc-files:    CHANGELOG.md
+extra-source-files:
+  c/utils.c
+  c/utils.h
+  c/zmq-wrapper.c
+  c/zmq-wrapper.h
 
 flag debug
   description: Enable debug output
@@ -36,12 +41,6 @@ common test-properties
   default-extensions:
     BlockArguments
     OverloadedStrings
-
-extra-source-files:
-  lib/c/utils.c
-  lib/c/utils.h
-  lib/c/zmq-wrapper.c
-  lib/c/zmq-wrapper.h
 
 ------------------------------------------------------------------------------------------------
 -- Lib
@@ -111,14 +110,14 @@ library
 
   default-extensions: Unsafe
   hs-source-dirs:     lib
-  include-dirs:       lib/c
+  include-dirs:       c
   includes:
     utils.c
     zmq-wrapper.h
 
   c-sources:
-    lib/c/utils.c
-    lib/c/zmq-wrapper.c
+    c/utils.c
+    c/zmq-wrapper.c
 
   if os(windows)
     extra-libraries: zmq

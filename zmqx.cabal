@@ -28,7 +28,9 @@ common test-properties
   other-modules:      Common
   hs-source-dirs:     test
   build-depends:
+    , mtl
     , text
+    , time
     , zmqx
 
   default-extensions:

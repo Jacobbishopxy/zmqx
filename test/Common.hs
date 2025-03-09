@@ -3,19 +3,14 @@
 -- date: 2025/02/28 08:51:15 Friday
 -- brief:
 
-module Common
-  ( endpoint,
-    endpoint1,
-    endpoint2,
-    endpointInproc,
-    unwrap,
-    endpointIpc1,
-    endpointIpc2,
-  )
-where
+module Common (module Common) where
 
 import Control.Exception (throwIO)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Reader (ReaderT, ask, liftIO)
 import Data.Text (Text)
+import Data.Time (defaultTimeLocale, formatTime, getCurrentTime)
+import System.IO
 import Zmqx
 
 endpoint :: Text
@@ -43,3 +38,44 @@ unwrap action =
   action >>= \case
     Left err -> throwIO err
     Right value -> pure value
+
+----------------------------------------------------------------------------------------------------
+
+type AppMonad = ReaderT Logger IO
+
+data Logger = Logger
+  { logInfo :: String -> IO (),
+    logError :: String -> IO ()
+  }
+
+createLogger :: IO Logger
+createLogger = do
+  now <- getCurrentTime
+  let fileName = formatTime defaultTimeLocale "%Y-%m-%d.log" now
+  handle <- openFile fileName AppendMode
+  hSetBuffering handle LineBuffering
+  let infoFunc msg = do
+        timestamp <- formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" <$> getCurrentTime
+        let output = "[" ++ timestamp ++ "] INFO: " ++ msg
+        putStrLn output
+        hPutStrLn handle output
+        hFlush handle
+      errorFunc msg = do
+        timestamp <- formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S" <$> getCurrentTime
+        let output = "[" ++ timestamp ++ "] ERROR: " ++ msg
+        hPutStrLn stderr output
+        hPutStrLn handle output
+        hFlush handle
+  return $ Logger infoFunc errorFunc
+
+logInfoM :: (MonadIO m) => Logger -> String -> m ()
+logInfoM logger = liftIO . logInfo logger
+
+logErrorM :: (MonadIO m) => Logger -> String -> m ()
+logErrorM logger = liftIO . logError logger
+
+logInfoR :: String -> AppMonad ()
+logInfoR msg = ask >>= \logger -> liftIO $ logInfo logger msg
+
+logErrorR :: String -> AppMonad ()
+logErrorR msg = ask >>= \logger -> liftIO $ logError logger msg

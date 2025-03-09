@@ -1,15 +1,15 @@
-cabal-version:   3.0
-name:            zmqx
-version:         0.1.0.0
-synopsis:        zmq haskell
-description:     zmq haskell
-license:         BSD-3-Clause
-license-file:    LICENSE
-author:          jacobxy
-maintainer:      jacobbishopxy@gmail.com
-copyright:       (c) Jacob Xie 2025
-build-type:      Simple
-extra-doc-files: CHANGELOG.md
+cabal-version:      3.0
+name:               zmqx
+version:            0.1.0.0
+synopsis:           zmq haskell
+description:        zmq haskell
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             jacobxy
+maintainer:         jacobbishopxy@gmail.com
+copyright:          (c) Jacob Xie 2025
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
 
 flag debug
   description: Enable debug output
@@ -36,6 +36,12 @@ common test-properties
   default-extensions:
     BlockArguments
     OverloadedStrings
+
+extra-source-files:
+  lib/c/utils.c
+  lib/c/utils.h
+  lib/c/zmq-wrapper.c
+  lib/c/zmq-wrapper.h
 
 ------------------------------------------------------------------------------------------------
 -- Lib

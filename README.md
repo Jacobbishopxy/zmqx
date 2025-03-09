@@ -15,7 +15,7 @@ Support `base ^>=4.20.0.0`
 source-repository-package
   type: git
   location: git@github.com:Jacobbishopxy/zmqx.git
-  tag: 2b649f32d1c5cfb947bd85c2aff504058612cb2e
+  tag: 7a11dafaed3265bbeaa041395fa88ddb09e89ee0
 ```
 
 ## Test & Build
@@ -36,4 +36,12 @@ cabal build --flag debug
 
 - [Simpl Pub](./test/SimplePub.hs) + [Simple Sub](./test/SimpleSub.hs)
 
-- [Task Ventilator (PUSH)](./test/TaskVentilator.hs) -> [Task Worker (PULL + PUSH)](./test/TaskWorker.hs) -> [Task Sink (PULL)](./test/TaskSink.hs)
+- [Task Ventilator (Push)](./test/TaskVentilator.hs) -> [Task Worker (Pull + Push)](./test/TaskWorker.hs) -> [Task Sink (Pull)](./test/TaskSink.hs)
+
+- [Zmq items poll](./test/ItemsPoll.hs)
+
+- [Simple Proxy (XPub + XSub)](./test/SimpleProxy.hs)
+
+- [Multiple workers (Router + Dealer + Rep)](./test/MutWorker.hs)
+
+- [Load-balance worker](./test/LBWorker.hs)

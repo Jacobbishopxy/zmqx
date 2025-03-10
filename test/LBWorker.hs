@@ -92,7 +92,7 @@ defaultBrokerConfig :: BrokerConfig
 defaultBrokerConfig =
   BrokerConfig
     { frontendAddr = "ipc://frontend.ipc",
-      backendAddr = "ipc://frontend.ipc",
+      backendAddr = "ipc://backend.ipc",
       nbrClients = 10,
       nbrWorkers = 3,
       clientTask = defaultClientTask,
@@ -114,7 +114,8 @@ defaultClientTask addr nbr = do
 
   zmqUnwrap (Zmqx.send client "Hello")
   reply <- zmqUnwrap (Zmqx.receive client)
-  logInfoR $ printf "Client %d: %s" nbr (ByteString.unpack reply)
+
+  logInfoR $ printf "Client %d received: %s" nbr (ByteString.unpack reply)
   where
     clientName = Text.pack $ "client-" <> show nbr
     clientName' = ByteString.pack $ "client-" <> show nbr
@@ -134,9 +135,10 @@ defaultWorkerTask addr nbr = do
 
   forever do
     zmqUnwrap (Zmqx.receives worker) >>= \case
-      [clientId, reqId, request] -> do
-        logInfoM logger $ printf "Worker %d: %s" nbr (ByteString.unpack request)
-        zmqUnwrap (Zmqx.sends worker [clientId, reqId, "OK"])
+      [clientId, reqId, "", request] -> do
+        -- received WorkerReply, then send "OK" to backend
+        zmqUnwrap (Zmqx.sends worker [clientId, reqId, "", "OK"])
+        logInfoM logger $ printf "Worker %d received then sent: %s" nbr (ByteString.unpack request)
       a -> do
         logInfoM logger $ printf "Unexpected worker msg!!! len: %d" (length a)
         pure ()
@@ -196,39 +198,47 @@ brokerLoop config frontend backend remainingClients workerQueue = do
 handleFrontend :: BrokerConfig -> Zmqx.Router -> Zmqx.Router -> Zmqx.Ready -> Int -> [WorkerInfo] -> AppMonad (Int, [WorkerInfo])
 handleFrontend BrokerConfig {..} frontend backend (Zmqx.Ready ready) clientsLeft queue
   | clientsLeft <= 0 || not (ready frontend) = do
-      logInfoR $ printf "handleFrontend no client/ not ready"
+      logInfoR $ printf "handleFrontend: no client/ not ready"
       pure (clientsLeft, queue)
   | otherwise = do
-      logInfoR $ printf "handleFrontend pass"
+      logInfoR $ printf "handleFrontend: pass"
       case queue of
         [] -> pure (clientsLeft, queue)
         (workerId, workerReqId) : rest ->
           decodeClientMsg <$> zmqUnwrap (Zmqx.receives frontend) >>= \case
             Just (ClientRequest clientId clientReqId request) -> do
               let workerMsg = encodeWorkerMessage (WorkerReply workerId workerReqId clientId clientReqId request)
+              -- 📧 get next client request, route to last-used worker
               zmqUnwrap (Zmqx.sends backend workerMsg)
-              logInfoR $ printf "handleFrontend sent backend workerMsg"
+              logInfoR $ printf "handleFrontend: sent backend WorkerReply %s" (show workerMsg)
+
+              -- TODO: try to delay the worker queue modification,
+              -- if only one worker in the pool, it would be removed from the queue,
+              -- so that the backend can not received the reply msg
+              liftIO $ threadDelay 1_000_000
+              -- remove the first worker from the queue
               pure (clientsLeft, rest)
             Nothing -> do
-              logInfoR $ printf "handleFrontend decode clientMsg failed"
+              logInfoR $ printf "handleFrontend: decode clientMsg failed"
               pure (clientsLeft, queue)
 
 -- ⭐️⭐️ handle messages from the backend (workers)
 handleBackend :: BrokerConfig -> Zmqx.Router -> Zmqx.Router -> Zmqx.Ready -> [WorkerInfo] -> Int -> AppMonad (Int, [WorkerInfo])
 handleBackend BrokerConfig {..} frontend backend (Zmqx.Ready ready) queue clientsLeft
   | not (ready backend) = do
-      logInfoR $ printf "handleBackend not ready"
+      logInfoR $ printf "handleBackend: not ready"
       pure (clientsLeft, queue)
   | otherwise = do
-      logInfoR $ printf "handleBackend ready"
+      logInfoR $ printf "handleBackend: ready"
       decodeWorkerMsg <$> zmqUnwrap (Zmqx.receives backend) >>= \case
         Just (WorkerReady workerId reqId) -> do
           logInfoR $ printf "handleBackend: WorkerReady"
           pure (clientsLeft, (workerId, reqId) : queue)
         Just (WorkerReply workerId reqId clientId clientReqId reply) -> do
-          logInfoR $ printf "handleBackend: WorkerReply"
+          -- received message from a worker, and pack the reply message then send to the client
           let replyMsg = encodeClientMsg (ClientRequest clientId clientReqId reply)
           zmqUnwrap (Zmqx.sends frontend replyMsg)
+          logInfoR $ printf "handleBackend: WorkerReply %s" (show replyMsg)
           pure (clientsLeft - 1, (workerId, reqId) : queue)
         Nothing -> do
           logInfoR $ printf "handleBackend: Nothing"

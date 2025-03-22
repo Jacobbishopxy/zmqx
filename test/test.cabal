@@ -1,0 +1,159 @@
+cabal-version: 3.0
+name:          test
+version:       0.1.0.0
+author:        jacob
+maintainer:    jacobbishopxy@gmail.com
+build-type:    Simple
+
+flag debug
+  description: Enable debug output
+  default:     False
+  manual:      True
+
+common test-properties
+  default-language:   GHC2024
+  other-modules:      Common
+  hs-source-dirs:     .
+  build-depends:
+    , base  >=4 && <5
+    , mtl
+    , text
+    , time
+    , zmqx
+
+  ghc-options:        -Wall
+  default-extensions:
+    BlockArguments
+    OverloadedStrings
+
+  if flag(debug)
+    cpp-options: -DZMQX_DEBUG
+
+------------------------------------------------------------------------------------------------
+-- TEST CASES
+------------------------------------------------------------------------------------------------
+
+test-suite test-version
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: Version.hs
+
+------------------------------------------------------------------------------------------------
+-- Req -> Rep
+
+test-suite test-simple-req
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimpleReq.hs
+  build-depends: bytestring
+
+test-suite test-simple-rep
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleRep.hs
+
+------------------------------------------------------------------------------------------------
+-- Dealer -> Router
+
+test-suite test-simple-dealer
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimpleDealer.hs
+  build-depends: bytestring
+
+test-suite test-simple-router
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleRouter.hs
+
+------------------------------------------------------------------------------------------------
+-- Pub -> Sub
+
+test-suite test-simple-pub
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimplePub.hs
+  build-depends:
+    , bytestring
+    , random
+
+test-suite test-simple-sub
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       SimpleSub.hs
+  build-depends:
+    , bytestring
+    , random
+
+------------------------------------------------------------------------------------------------
+-- ventilator -> worker[] -> sink
+
+test-suite test-task-ventilator
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskVentilator.hs
+  build-depends:
+    , bytestring
+    , random
+
+test-suite test-task-worker
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskWorker.hs
+  build-depends:
+    , bytestring
+    , random
+
+test-suite test-task-sink
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskSink.hs
+  build-depends:
+    , bytestring
+    , random
+
+------------------------------------------------------------------------------------------------
+-- items + poll
+
+test-suite test-items-poll
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: ItemsPoll.hs
+
+------------------------------------------------------------------------------------------------
+-- Router <-> Dealer, broker
+
+test-suite test-simple-broker
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleBroker.hs
+
+------------------------------------------------------------------------------------------------
+-- XPub + XSub, proxy
+
+test-suite test-simple-proxy
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: SimpleProxy.hs
+
+------------------------------------------------------------------------------------------------
+-- Router -> Dealer (inproc) -> Rep[] (inproc)
+
+test-suite test-mut-worker
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       MutWorker.hs
+  build-depends:
+    , bytestring
+    , ki
+
+------------------------------------------------------------------------------------------------
+-- Router (ipc) -> Router (ipc)
+
+test-suite test-lb-worker
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       LBWorker.hs
+  build-depends:
+    , bytestring
+    , ki

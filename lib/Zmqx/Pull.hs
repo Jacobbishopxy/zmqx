@@ -11,19 +11,21 @@ module Zmqx.Pull
     disconnect,
     receive,
     receives,
+    receivesFor,
   )
 where
 
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
-import Zmqx.Internal
 import Numeric.Natural (Natural)
-import Zmqx.Error
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Socket (CanReceive, CanReceives, Socket (..))
+import Zmqx.Core.Poll qualified as Poll
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanReceivesFor, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
+import Zmqx.Error
+import Zmqx.Internal
 
 -- | A thread-safe __puller__ socket.
 --
@@ -38,6 +40,9 @@ instance CanReceive Pull where
 
 instance CanReceives Pull where
   receives_ = receives
+
+instance CanReceivesFor Pull where
+  receivesFor_ = receivesFor
 
 defaultOptions :: Options Pull
 defaultOptions =
@@ -96,3 +101,21 @@ receives socket =
   catchingOkErrors do
     frame :| frames <- Socket.receiveMany socket
     pure (frame : frames)
+
+-- | Receive a __multiframe message__ on a __dealer__ from any peer (fair-queued) with a timeout.
+--
+-- The timeout is specified in milliseconds. If no message is available within the timeout,
+-- returns `Right Nothing`. If a message is received, returns `Right (Just message)`.
+-- If an error occurs, returns `Left error`.
+receivesFor :: Pull -> Int -> IO (Either Error (Maybe [ByteString]))
+receivesFor socket timeout =
+  catchingOkErrors do
+    Poll.pollFor (Poll.the socket) timeout >>= \case
+      Right Nothing -> pure Nothing
+      Right (Just (Poll.Ready isReady)) ->
+        if isReady socket
+          then do
+            frame :| frames <- Socket.receiveMany socket
+            pure (Just (frame : frames))
+          else pure Nothing
+      Left err -> throwOkError err

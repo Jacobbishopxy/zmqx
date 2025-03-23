@@ -10,6 +10,7 @@ module Zmqx.Core.Socket
     CanSends (..),
     CanReceive (..),
     CanReceives (..),
+    CanReceivesFor (..),
     openSocket,
     usingSocket,
     bind,
@@ -24,6 +25,8 @@ module Zmqx.Core.Socket
     sendManyWontBlock,
     receiveOne,
     receiveMany,
+    receiveOneDontWait,
+    receiveManyDontWait,
     blockUntilCanSend,
     blockUntilCanReceive,
   )
@@ -116,6 +119,11 @@ class CanReceive a where
 class CanReceives a where
   receives_ :: a -> IO (Either Error [ByteString])
   receives_ = undefined -- hide "minimal complete definition" haddock
+
+-- | milliseconds
+class CanReceivesFor a where
+  receivesFor_ :: a -> Int -> IO (Either Error (Maybe [ByteString]))
+  receivesFor_ = undefined -- hide "minimal complete definition" haddock
 
 -- Throws ok errors
 openSocket :: Zmq_socket_type -> Options.Options (Socket a) -> Extra a -> IO (Socket a)

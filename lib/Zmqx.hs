@@ -33,6 +33,7 @@ module Zmqx
     sends,
     receive,
     receives,
+    receivesFor,
 
     -- ** IO multiplexing
     Sockets,
@@ -83,6 +84,7 @@ module Zmqx
     Socket.CanSends,
     Socket.CanReceive,
     Socket.CanReceives,
+    Socket.CanReceivesFor,
     CanPoll,
 
     -- ** Options
@@ -132,6 +134,10 @@ receive =
 receives :: (Socket.CanReceives socket) => socket -> IO (Either Error [ByteString])
 receives =
   Socket.receives_
+
+receivesFor :: (Socket.CanReceivesFor socket) => socket -> Int -> IO (Either Error (Maybe [ByteString]))
+receivesFor =
+  Socket.receivesFor_
 
 version :: (Int, Int, Int)
 version =

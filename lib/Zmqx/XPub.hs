@@ -15,6 +15,7 @@ module Zmqx.XPub
     sends,
     receive,
     receives,
+    receivesFor,
   )
 where
 
@@ -25,7 +26,8 @@ import Data.Text (Text)
 import Numeric.Natural (Natural)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Socket (CanReceive, CanReceives, CanSend, CanSends, Socket (..))
+import Zmqx.Core.Poll qualified as Poll
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanReceivesFor, CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError)
 import Zmqx.Internal
@@ -45,6 +47,9 @@ instance CanReceive XPub where
 
 instance CanReceives XPub where
   receives_ = receives
+
+instance CanReceivesFor XPub where
+  receivesFor_ = receivesFor
 
 instance CanSend XPub where
   send_ = send
@@ -155,3 +160,21 @@ receives socket =
   catchingOkErrors do
     frame :| frames <- Socket.receiveMany socket
     pure (frame : frames)
+
+-- | Receive a __multiframe message__ on a __dealer__ from any peer (fair-queued) with a timeout.
+--
+-- The timeout is specified in milliseconds. If no message is available within the timeout,
+-- returns `Right Nothing`. If a message is received, returns `Right (Just message)`.
+-- If an error occurs, returns `Left error`.
+receivesFor :: XPub -> Int -> IO (Either Error (Maybe [ByteString]))
+receivesFor socket timeout =
+  catchingOkErrors do
+    Poll.pollFor (Poll.the socket) timeout >>= \case
+      Right Nothing -> pure Nothing
+      Right (Just (Poll.Ready isReady)) ->
+        if isReady socket
+          then do
+            frame :| frames <- Socket.receiveMany socket
+            pure (Just (frame : frames))
+          else pure Nothing
+      Left err -> throwOkError err

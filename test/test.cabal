@@ -157,3 +157,12 @@ test-suite test-lb-worker
   build-depends:
     , bytestring
     , ki
+
+------------------------------------------------------------------------------------------------
+-- receivesFor timeout
+
+test-suite test-recv-for
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       ReceivesFor.hs
+  build-depends: bytestring

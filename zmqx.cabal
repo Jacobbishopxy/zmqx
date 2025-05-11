@@ -73,7 +73,6 @@ library
 
   build-depends:
     , array
-    , base        ^>=4.20.0.0
     , bytestring
     , containers
     , primitive

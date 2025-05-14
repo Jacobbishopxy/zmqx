@@ -52,14 +52,19 @@ bogusContext =
 run :: Options () -> IO a -> IO a
 run options action =
   mask \restore -> do
-    context <- newContext options
-    writeIORef globalContextRef context
-    result <- try (restore action)
-    uninterruptibleMask_ (terminateContext context)
-    writeIORef globalContextRef bogusContext
-    case result of
-      Left (exception :: SomeException) -> throwIO exception
-      Right value -> pure value
+    context <- try (newContext options)
+    case context of
+      Left e -> throwIO (e :: SomeException)
+      Right ctx -> do
+        -- Use atomicModifyIORef' for thread-safe updates
+        atomicModifyIORef' globalContextRef (\_ -> (ctx, ()))
+        result <- try (restore action) `onException` 
+          uninterruptibleMask_ (terminateContext ctx)
+        uninterruptibleMask_ (terminateContext ctx)
+        atomicModifyIORef' globalContextRef (\_ -> (bogusContext, ()))
+        case result of
+          Left (exception :: SomeException) -> throwIO exception
+          Right value -> pure value
 
 newContext :: Options () -> IO Zmq_ctx
 newContext options = do

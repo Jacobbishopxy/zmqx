@@ -89,6 +89,7 @@ terminateContext context = do
   -- Why reverse: close in the order they were acquired :shrug:
   finalizers <- readIORef globalSocketFinalizersRef
   for_ (reverse finalizers) runSocketFinalizer
+  atomicWriteIORef globalSocketFinalizersRef []
 
   -- Terminate the context
   let loop maybeErr =

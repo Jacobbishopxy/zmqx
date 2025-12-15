@@ -96,12 +96,13 @@ data PreparedSockets = PreparedSockets
   }
 
 prepareSockets :: Sockets -> IO PreparedSockets
-prepareSockets (Sockets sockets0 len) = do
+prepareSockets (Sockets sockets0 _len) = do
   (fullREQs, sockets1, pollingAnyREQs) <- partitionSockets Set.empty [] False sockets0
-  socketsToPoll2 <- MArray.newListArray (0, len - 1) (map someSocketToPollitem sockets1)
+  let filteredLen = length sockets1
+  socketsToPoll2 <- MArray.newListArray (0, filteredLen - 1) (map someSocketToPollitem sockets1)
   pure
     PreparedSockets
-      { socketsToPoll = Primitive.Array.arrayFromListN len sockets1,
+      { socketsToPoll = Primitive.Array.arrayFromListN filteredLen sockets1,
         socketsToPoll2,
         pollingAnyREQs,
         fullREQs

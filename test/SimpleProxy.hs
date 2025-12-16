@@ -24,7 +24,7 @@ main = do
     unwrap (Zmqx.bind backend endpoint2)
 
     -- Run the proxy until the user interrupts us
-    let items = Zmqx.the frontend & Zmqx.also backend
+    let items = Zmqx.pollIn frontend & Zmqx.pollInAlso backend
     forever do
       Zmqx.Ready ready <- unwrap (Zmqx.poll items)
       when (ready frontend) do

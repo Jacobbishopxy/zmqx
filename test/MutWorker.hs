@@ -42,7 +42,7 @@ main = do
             unwrap (Zmqx.send receiver "World")
 
       -- Connect work threads to client threads via a queue proxy
-      let items = Zmqx.the clients & Zmqx.also workers
+      let items = Zmqx.pollIn clients & Zmqx.pollInAlso workers
       forever do
         Zmqx.Ready ready <- unwrap (Zmqx.poll items)
         when (ready clients) do

@@ -38,11 +38,14 @@ module Zmqx
     -- ** IO multiplexing
     Sockets,
     Ready (..),
-    the,
-    also,
+    pollIn,
+    pollInAlso,
+    pollOut,
+    pollOutAlso,
     poll,
     pollFor,
     pollUntil,
+    PollEvent (..),
 
     -- * Socket types
     Dealer,
@@ -101,7 +104,7 @@ import Zmqx.Core.Context
 import Zmqx.Core.Curve
 import Zmqx.Core.Monitor (monitor)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Poll (CanPoll, Ready (..), Sockets, also, poll, pollFor, pollUntil, the)
+import Zmqx.Core.Poll (CanPoll, PollEvent (..), Ready (..), Sockets, poll, pollFor, pollIn, pollInAlso, pollOut, pollOutAlso, pollUntil)
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Dealer (Dealer)
 import Zmqx.Error (Error (..))

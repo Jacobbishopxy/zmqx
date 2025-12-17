@@ -22,7 +22,7 @@ main = do
     unwrap (Zmqx.bind backend endpoint2)
 
     -- Initialize poll set
-    let items = Zmqx.pollIn frontend & Zmqx.pollInAlso backend
+    let items = Zmqx.the frontend & Zmqx.also backend
     -- Switch messages between sockets
     forever do
       Zmqx.Ready ready <- unwrap (Zmqx.poll items)

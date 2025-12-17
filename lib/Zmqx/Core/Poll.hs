@@ -4,13 +4,10 @@
 
 module Zmqx.Core.Poll
   ( CanPoll,
-    PollEvent (..),
     Sockets,
     Ready (..),
-    pollIn,
-    pollInAlso,
-    pollOut,
-    pollOutAlso,
+    the,
+    also,
     poll,
     pollFor,
     pollUntil,
@@ -31,7 +28,6 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Word (Word64)
 import GHC.Clock (getMonotonicTimeNSec)
-import GHC.Base (Symbol)
 import Zmqx.Core.IO (keepAlive)
 import Zmqx.Core.Socket (Socket (..))
 import Zmqx.Core.Socket qualified as Socket
@@ -40,75 +36,40 @@ import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpecte
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
 
-data PollEvent
-  = PollIn
-  | PollOut
+class CanPoll a
 
-class CanPoll (event :: PollEvent) (a :: Symbol)
+instance CanPoll "DEALER"
 
-instance CanPoll 'PollIn "DEALER"
+instance CanPoll "PAIR"
 
-instance CanPoll 'PollOut "DEALER"
+instance CanPoll "PULL"
 
-instance CanPoll 'PollIn "PAIR"
+instance CanPoll "REP"
 
-instance CanPoll 'PollOut "PAIR"
+instance CanPoll "REQ"
 
-instance CanPoll 'PollIn "PULL"
+instance CanPoll "ROUTER"
 
-instance CanPoll 'PollOut "PUSH"
+instance CanPoll "SUB"
 
-instance CanPoll 'PollIn "REP"
+instance CanPoll "XPUB"
 
-instance CanPoll 'PollOut "REP"
-
-instance CanPoll 'PollIn "REQ"
-
-instance CanPoll 'PollOut "REQ"
-
-instance CanPoll 'PollIn "ROUTER"
-
-instance CanPoll 'PollOut "ROUTER"
-
-instance CanPoll 'PollIn "SUB"
-
-instance CanPoll 'PollIn "XPUB"
-
-instance CanPoll 'PollOut "XPUB"
-
-instance CanPoll 'PollIn "XSUB"
-
-instance CanPoll 'PollOut "XSUB"
-
-instance CanPoll 'PollOut "PUB"
+instance CanPoll "XSUB"
 
 data Sockets
   = Sockets
-      -- sockets (with events) in reverse order of how they were added (with postfix syntax), e.g. pollIn A & pollInAlso B
-      -- & pollInAlso C = [C, B, A]
-      ![SocketToPoll]
+      -- socket in reverse order of how they were added (with postfix syntax), e.g. the X & also Y & also Z = [Z, Y, X]
+      ![SomeSocket]
       -- number of sockets in the list
       !Int
 
--- | Build a polling set listening for incoming readiness on a single socket.
-pollIn :: (CanPoll 'PollIn a) => Socket a -> Sockets
-pollIn socket =
-  Sockets [socketToPoll PollIn socket] 1
+the :: (CanPoll a) => Socket a -> Sockets
+the socket =
+  Sockets [SomeSocket socket] 1
 
--- | Append another input-ready socket to an existing polling set.
-pollInAlso :: (CanPoll 'PollIn a) => Socket a -> Sockets -> Sockets
-pollInAlso socket (Sockets sockets len) =
-  Sockets (socketToPoll PollIn socket : sockets) (len + 1)
-
--- | Build a polling set listening for outgoing readiness on a single socket.
-pollOut :: (CanPoll 'PollOut a) => Socket a -> Sockets
-pollOut socket =
-  Sockets [socketToPoll PollOut socket] 1
-
--- | Append another output-ready socket to an existing polling set.
-pollOutAlso :: (CanPoll 'PollOut a) => Socket a -> Sockets -> Sockets
-pollOutAlso socket (Sockets sockets len) =
-  Sockets (socketToPoll PollOut socket : sockets) (len + 1)
+also :: (CanPoll a) => Socket a -> Sockets -> Sockets
+also socket (Sockets sockets len) =
+  Sockets (SomeSocket socket : sockets) (len + 1)
 
 data Ready
   = Ready (forall a. Socket a -> Bool)
@@ -117,50 +78,30 @@ makeReady :: Set SomeSocket -> Socket a -> Bool
 makeReady sockets =
   (`Set.member` sockets) . SomeSocket
 
-data SocketToPoll = SocketToPoll
-  { pollSocket :: !SomeSocket,
-    pollEvent :: !PollEvent
-  }
-
-socketToPoll :: PollEvent -> Socket a -> SocketToPoll
-socketToPoll pollEvent socket =
-  SocketToPoll (SomeSocket socket) pollEvent
-
-pollEventToEvents :: PollEvent -> Zmq_events
-pollEventToEvents = \case
-  PollIn -> ZMQ_POLLIN
-  PollOut -> ZMQ_POLLOUT
-
-pollEventIsInput :: PollEvent -> Bool
-pollEventIsInput = \case
-  PollIn -> True
-  PollOut -> False
-
 ------------------------------------------------------------------------------------------------------------------------
 -- Preparing sockets for polling
 
 data PreparedSockets = PreparedSockets
-  { -- The subset of the input sockets that actually need to be polled. Input REQ sockets with a buffered message are
-    -- excluded; all other sockets (including output-polling REQs) are kept.
+  { -- The subset of the input sockets that actually need to be polled. Each is either a non-REQ socket, or a REQ socket
+    -- with an empty message buffer.
     --
     -- TODO SmallArray
-    socketsToPoll :: Primitive.Array SocketToPoll,
+    socketsToPoll :: Primitive.Array SomeSocket,
     -- The same sockets as `socketsToPoll`, to pass to libzmq
     socketsToPoll2 :: StorableArray Int Zmq_pollitem,
-    -- Are we polling any REQ sockets for input?
+    -- Are we polling any REQ sockets?
     pollingAnyREQs :: Bool,
     -- The subset of input sockets that don't need to be polled, because they are REQs with a full message buffer.
     fullREQs :: Set SomeSocket
   }
 
 prepareSockets :: Sockets -> IO PreparedSockets
-prepareSockets (Sockets sockets0 _len) = do
+prepareSockets (Sockets sockets0 len) = do
   (fullREQs, sockets1, pollingAnyREQs) <- partitionSockets Set.empty [] False sockets0
-  let filteredLen = length sockets1
-  socketsToPoll2 <- MArray.newListArray (0, filteredLen - 1) (map someSocketToPollitem sockets1)
+  socketsToPoll2 <- MArray.newListArray (0, len - 1) (map someSocketToPollitem sockets1)
   pure
     PreparedSockets
-      { socketsToPoll = Primitive.Array.arrayFromListN filteredLen sockets1,
+      { socketsToPoll = Primitive.Array.arrayFromListN len sockets1,
         socketsToPoll2,
         pollingAnyREQs,
         fullREQs
@@ -168,23 +109,23 @@ prepareSockets (Sockets sockets0 _len) = do
   where
     partitionSockets ::
       Set SomeSocket ->
-      [SocketToPoll] ->
+      [SomeSocket] ->
       Bool ->
-      [SocketToPoll] ->
-      IO (Set SomeSocket, [SocketToPoll], Bool)
+      [SomeSocket] ->
+      IO (Set SomeSocket, [SomeSocket], Bool)
     partitionSockets readyREQs notReadyREQs anyREQs = \case
       [] -> pure (readyREQs, notReadyREQs, anyREQs)
-      socketToPoll'@SocketToPoll {pollSocket = someSocket@(SomeSocket socket), pollEvent} : someSockets ->
-        case (pollEventIsInput pollEvent, extra socket) of
-          (True, Socket.ReqExtra messageBuffer) ->
+      someSocket@(SomeSocket socket) : someSockets ->
+        case extra socket of
+          Socket.ReqExtra messageBuffer ->
             readIORef messageBuffer >>= \case
-              Nothing -> partitionSockets readyREQs (socketToPoll' : notReadyREQs) True someSockets
-              Just _ -> partitionSockets (Set.insert someSocket readyREQs) notReadyREQs True someSockets
-          _ -> partitionSockets readyREQs (socketToPoll' : notReadyREQs) anyREQs someSockets
+              Nothing -> partitionSockets readyREQs (someSocket : notReadyREQs) True someSockets
+              Just _ -> partitionSockets (Set.insert someSocket readyREQs) notReadyREQs anyREQs someSockets
+          _ -> partitionSockets readyREQs (someSocket : notReadyREQs) anyREQs someSockets
 
-someSocketToPollitem :: SocketToPoll -> Zmq_pollitem
-someSocketToPollitem SocketToPoll {pollSocket = SomeSocket Socket {zsocket}, pollEvent} =
-  Zmq_pollitem_socket zsocket (pollEventToEvents pollEvent)
+someSocketToPollitem :: SomeSocket -> Zmq_pollitem
+someSocketToPollitem (SomeSocket Socket {zsocket}) =
+  Zmq_pollitem_socket zsocket ZMQ_POLLIN
 
 -- Given the sockets that we just polled (in two different corresponding arrays), return the set that is "ostensibly
 -- ready" - that is, the sockets that libzmq has indicated are ready for reading.
@@ -192,7 +133,7 @@ someSocketToPollitem SocketToPoll {pollSocket = SomeSocket Socket {zsocket}, pol
 -- All "ostensibly ready" non-REQ sockets are actually ready. All "ostensibly ready" REQ sockets need to be probed for
 -- a message (because libzmq tells us a REQ socket is ready, even if the message that arrived is not a response to the
 -- latest request, and will thus be tossed by libzmq).
-getOstensiblyReadySockets :: Primitive.Array SocketToPoll -> StorableArray Int Zmq_pollitem -> IO (Set SomeSocket)
+getOstensiblyReadySockets :: Primitive.Array SomeSocket -> StorableArray Int Zmq_pollitem -> IO (Set SomeSocket)
 getOstensiblyReadySockets socketsToPoll socketsToPoll2 = do
   (lo, hi) <- MArray.getBounds socketsToPoll2
   let loop :: Set SomeSocket -> Int -> IO (Set SomeSocket)
@@ -203,7 +144,7 @@ getOstensiblyReadySockets socketsToPoll socketsToPoll2 = do
             pollitem <- Array.unsafeRead socketsToPoll2 i
             if Zmqx.Internal.Bindings.revents pollitem == 0
               then loop acc (i + 1)
-              else loop (Set.insert (pollSocket (Primitive.Array.indexArray socketsToPoll i)) acc) (i + 1)
+              else loop (Set.insert (Primitive.Array.indexArray socketsToPoll i) acc) (i + 1)
   loop Set.empty lo
 
 ------------------------------------------------------------------------------------------------------------------------

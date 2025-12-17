@@ -25,7 +25,7 @@ main = do
     unwrap (Zmqx.Sub.subscribe subscriber "10001 ")
 
     -- Process messages from both sockets
-    let items = Zmqx.pollIn receiver & Zmqx.pollInAlso subscriber
+    let items = Zmqx.the receiver & Zmqx.also subscriber
     forever do
       Zmqx.Ready ready <- unwrap (Zmqx.poll items)
       when (ready receiver) do

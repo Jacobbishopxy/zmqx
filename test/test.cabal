@@ -120,12 +120,6 @@ test-suite test-items-poll
   type:    exitcode-stdio-1.0
   main-is: ItemsPoll.hs
 
-test-suite test-poll-out
-  import:        test-properties
-  type:          exitcode-stdio-1.0
-  main-is:       PollOut.hs
-  build-depends: bytestring
-
 ------------------------------------------------------------------------------------------------
 -- Router <-> Dealer, broker
 

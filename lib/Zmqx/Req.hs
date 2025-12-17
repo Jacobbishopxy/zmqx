@@ -169,7 +169,7 @@ receives socket@Socket {extra = Socket.ReqExtra messageBuffer} =
 receivesFor :: Req -> Int -> IO (Either Error (Maybe [ByteString]))
 receivesFor socket timeout =
   catchingOkErrors do
-    Poll.pollFor (Poll.pollIn socket) timeout >>= \case
+    Poll.pollFor (Poll.the socket) timeout >>= \case
       Right Nothing -> pure Nothing
       Right (Just (Poll.Ready isReady)) ->
         if isReady socket

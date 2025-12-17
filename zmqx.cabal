@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               zmqx
-version:            0.1.0.1
+version:            0.1.0.0
 synopsis:           zmq haskell
 description:        zmq haskell
 license:            BSD-3-Clause

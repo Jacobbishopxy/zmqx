@@ -107,7 +107,7 @@ ioThreads n =
 maxSockets :: Natural -> Options ()
 maxSockets n =
   ContextOptions \context ->
-    setContextOption context ZMQ_MAX_SOCKETS (natToInt (max 1 n)) -- enforce minimum 1, allow higher limits
+    setContextOption context ZMQ_MAX_SOCKETS (natToInt (min 1 n)) -- 0 is invalid
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Socket options

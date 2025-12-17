@@ -6,7 +6,6 @@
 module Zmqx.Internal.Bindings.Functions (module Zmqx.Internal.Bindings.Functions) where
 
 import Data.Word (Word8)
-import Foreign.C.ConstPtr (ConstPtr (..))
 import Foreign.C.String (CString)
 import Foreign.C.Types (CChar (..), CInt (..), CLong (..), CSize (..))
 import Foreign.Ptr (FunPtr, Ptr)
@@ -25,7 +24,7 @@ foreign import capi unsafe "zmq.h zmq_errno"
 --
 -- http://api.zeromq.org/master:zmq-strerror
 foreign import capi unsafe "zmq.h zmq_strerror"
-  zmq_strerror :: CInt -> ConstPtr CChar
+  zmq_strerror :: CInt -> Ptr CChar
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Version
@@ -100,7 +99,7 @@ foreign import capi unsafe "zmq.h zmq_msg_get"
 --
 -- http://api.zeromq.org/master:zmq-msg-gets
 foreign import capi unsafe "zmq.h zmq_msg_gets"
-  zmq_msg_gets :: Ptr Zmq_msg -> CString -> IO (ConstPtr CChar)
+  zmq_msg_gets :: Ptr Zmq_msg -> CString -> IO CString
 
 -- | Initialise an empty ØMQ message.
 --

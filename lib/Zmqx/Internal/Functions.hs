@@ -25,7 +25,6 @@ import Data.Void (Void)
 import Data.Word (Word8)
 import Foreign (FunPtr, Ptr, Storable (peek, poke, sizeOf), alloca, allocaBytes, castPtr, free, malloc, mallocBytes, nullPtr, withForeignPtr)
 import Foreign.C (CChar (..), CInt (..), CLong (..), CSize (..), CUInt)
-import Foreign.C.ConstPtr (unConstPtr)
 import Foreign.Marshal.Utils (copyBytes)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Zmqx.Internal.Bindings qualified
@@ -58,10 +57,7 @@ zmq_errno =
 -- http://api.zeromq.org/master:zmq-strerror
 zmq_strerror :: Zmq_error -> Text
 zmq_strerror (Zmq_error errno) =
-  Text.decodeUtf8
-    ( unsafeDupablePerformIO
-        (ByteString.Unsafe.unsafePackCString (unConstPtr (Zmqx.Internal.Bindings.zmq_strerror errno)))
-    )
+  Text.decodeUtf8 (unsafeDupablePerformIO (ByteString.Unsafe.unsafePackCString (Zmqx.Internal.Bindings.zmq_strerror errno)))
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Version
@@ -177,8 +173,7 @@ zmq_msg_free (Zmq_msg message) =
 zmq_msg_gets :: Zmq_msg -> Text -> IO (Either Zmq_error Text)
 zmq_msg_gets (Zmq_msg message) property = do
   value <- Text.withCString property (Zmqx.Internal.Bindings.zmq_msg_gets message)
-  let valuePtr = unConstPtr value
-  if valuePtr == nullPtr then Left <$> zmq_errno else Right <$> Text.fromPtr0 (castPtr @CChar @Word8 valuePtr)
+  if value == nullPtr then Left <$> zmq_errno else Right <$> Text.fromPtr0 (castPtr @CChar @Word8 value)
 
 -- | Get a ØMQ message option.
 --

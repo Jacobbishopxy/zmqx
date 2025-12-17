@@ -176,7 +176,7 @@ brokerLoop config frontend backend remainingClients workerQueue = do
   logger <- ask
   logInfoR $ formatWorkerQueue workerQueue
   -- ⭐️⭐️⭐️ determine which sockets to poll based on the worker queue
-  let pollItems = Zmqx.the backend & if not (null workerQueue) then Zmqx.also frontend else id
+  let pollItems = Zmqx.pollIn backend & if not (null workerQueue) then Zmqx.pollInAlso frontend else id
 
   -- ⭐️ poll for messages
   liftIO $

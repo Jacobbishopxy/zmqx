@@ -61,7 +61,8 @@ run options action =
         result <- try (restore action) `onException` 
           uninterruptibleMask_ (terminateContext ctx)
         uninterruptibleMask_ (terminateContext ctx)
-        atomicModifyIORef' globalContextRef (\_ -> (bogusContext, ()))
+        -- Use lazy modify here to avoid forcing the bogusContext error when resetting.
+        atomicModifyIORef globalContextRef (\_ -> (bogusContext, ()))
         case result of
           Left (exception :: SomeException) -> throwIO exception
           Right value -> pure value
@@ -89,6 +90,7 @@ terminateContext context = do
   -- Why reverse: close in the order they were acquired :shrug:
   finalizers <- readIORef globalSocketFinalizersRef
   for_ (reverse finalizers) runSocketFinalizer
+  atomicWriteIORef globalSocketFinalizersRef []
 
   -- Terminate the context
   let loop maybeErr =

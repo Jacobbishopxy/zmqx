@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- file: Context.hs
@@ -6,12 +7,14 @@
 -- brief:
 
 module Zmqx.Core.Context
-  ( globalContextRef,
+  ( RunError (..),
+    globalContextRef,
     globalSocketFinalizersRef,
     run,
   )
 where
 
+import Control.Concurrent.MVar
 import Control.Exception
 import Data.Foldable (for_)
 import Data.IORef
@@ -22,12 +25,25 @@ import Zmqx.Core.SocketFinalizer (SocketFinalizer, runSocketFinalizer)
 import Zmqx.Error (enrichError, unexpectedError)
 import Zmqx.Internal
 
--- TODO runtime error if `run` twice
+data RunError
+  = RunAlreadyActive
+  | ContextNotInitialized
+  deriving stock (Eq, Show)
 
-globalContextRef :: IORef Zmq_ctx
+instance Exception RunError where
+  displayException = \case
+    RunAlreadyActive -> "Zmqx.run was called while another run is active"
+    ContextNotInitialized -> "Zmqx context not initialized; wrap usage in Zmqx.run"
+
+globalContextRef :: IORef (Maybe Zmq_ctx)
 globalContextRef =
-  unsafePerformIO (newIORef bogusContext)
+  unsafePerformIO (newIORef Nothing)
 {-# NOINLINE globalContextRef #-}
+
+globalRunLock :: MVar ()
+globalRunLock =
+  unsafePerformIO (newMVar ())
+{-# NOINLINE globalRunLock #-}
 
 -- A context cannot terminate until all sockets are closed. So, whenever we open a socket, we register a weak
 -- pointer to an action that closes that socket. Sockets thus either close "naturally" (via a finalizer), or during
@@ -42,30 +58,40 @@ globalSocketFinalizersRef =
   unsafePerformIO (newIORef [])
 {-# NOINLINE globalSocketFinalizersRef #-}
 
-bogusContext :: Zmq_ctx
-bogusContext =
-  error "zmq library not initialized"
-
 -- | Run a main function.
 --
--- This function must be called exactly once, and must wrap all other calls to this library.
+-- This function must be called exactly once at a time, and must wrap all other calls to this library.
 run :: Options () -> IO a -> IO a
 run options action =
-  mask \restore -> do
-    context <- try (newContext options)
-    case context of
-      Left e -> throwIO (e :: SomeException)
-      Right ctx -> do
-        -- Use atomicModifyIORef' for thread-safe updates
-        atomicModifyIORef' globalContextRef (\_ -> (ctx, ()))
-        result <- try (restore action) `onException` 
-          uninterruptibleMask_ (terminateContext ctx)
-        uninterruptibleMask_ (terminateContext ctx)
-        -- Use lazy modify here to avoid forcing the bogusContext error when resetting.
-        atomicModifyIORef globalContextRef (\_ -> (bogusContext, ()))
-        case result of
-          Left (exception :: SomeException) -> throwIO exception
-          Right value -> pure value
+  withRunGuard do
+    bracket (initializeContext options) cleanupContext \_ ->
+      action
+  where
+    initializeContext opts =
+      mask_ do
+        atomicWriteIORef globalSocketFinalizersRef []
+        context <- newContext opts
+        atomicWriteIORef globalContextRef (Just context)
+        pure context
+
+    cleanupContext context =
+      uninterruptibleMask_ $
+        terminateContext context
+          `finally` do
+            atomicWriteIORef globalSocketFinalizersRef []
+            atomicWriteIORef globalContextRef Nothing
+
+withRunGuard :: IO a -> IO a
+withRunGuard =
+  bracket acquireRunLock releaseRunLock . const
+  where
+    acquireRunLock =
+      mask_ do
+        tryTakeMVar globalRunLock >>= \case
+          Nothing -> throwIO RunAlreadyActive
+          Just () -> pure ()
+    releaseRunLock () =
+      putMVar globalRunLock ()
 
 newContext :: Options () -> IO Zmq_ctx
 newContext options = do

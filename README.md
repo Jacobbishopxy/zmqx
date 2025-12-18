@@ -18,6 +18,90 @@ source-repository-package
   tag: 35338d457593b9d9200c256edf93bfe2a370cf3a
 ```
 
+## Quickstart
+
+### `Zmqx.run` (global context)
+
+Use `Zmqx.run` for typical applications: it creates a single global ØMQ context, and all `*.open` functions use that
+context under the hood. `Zmqx.run` is guarded and must not be nested (it throws `RunAlreadyActive`).
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+
+import Control.Concurrent (forkIO)
+import Control.Exception (throwIO)
+import Data.ByteString.Char8 qualified as BS
+import Zmqx qualified
+import Zmqx.Rep qualified
+import Zmqx.Req qualified
+
+unwrap :: Either Zmqx.Error a -> IO a
+unwrap =
+  either throwIO pure
+
+main :: IO ()
+main =
+  Zmqx.run Zmqx.defaultOptions do
+    rep <- unwrap (Zmqx.Rep.open (Zmqx.name "server"))
+    req <- unwrap (Zmqx.Req.open (Zmqx.name "client"))
+
+    let endpoint = "inproc://ping"
+    unwrap (Zmqx.bind rep endpoint)
+    unwrap (Zmqx.connect req endpoint)
+
+    _ <- forkIO do
+      msg <- unwrap (Zmqx.receive rep)
+      putStrLn ("server got: " <> BS.unpack msg)
+      unwrap (Zmqx.send rep "pong")
+
+    unwrap (Zmqx.send req "ping")
+    reply <- unwrap (Zmqx.receive req)
+    putStrLn ("client got: " <> BS.unpack reply)
+```
+
+### `Zmqx.withContext` (explicit context)
+
+Use `Zmqx.withContext` when you want to avoid global state (e.g. embedding `zmqx` inside a larger app/library, or when you
+need multiple isolated contexts). In this mode, open sockets via `openWith` (from `ContextualOpen`) instead of `*.open`.
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+
+import Control.Concurrent (forkIO)
+import Control.Exception (throwIO)
+import Data.ByteString.Char8 qualified as BS
+import Zmqx qualified
+import Zmqx.Rep
+import Zmqx.Req
+
+unwrap :: Either Zmqx.Error a -> IO a
+unwrap =
+  either throwIO pure
+
+main :: IO ()
+main =
+  Zmqx.withContext Zmqx.defaultOptions \ctx -> do
+    rep <- unwrap (Zmqx.openWith ctx (Zmqx.Rep.defaultOptions <> name "server"))
+    req <- unwrap (Zmqx.openWith ctx (Zmqx.Req.defaultOptions <> name "client"))
+
+    let endpoint = "inproc://ping"
+    unwrap (Zmqx.bind rep endpoint)
+    unwrap (Zmqx.connect req endpoint)
+
+    _ <- forkIO do
+      msg <- unwrap (Zmqx.receive rep)
+      putStrLn ("server got: " <> BS.unpack msg)
+      unwrap (Zmqx.send rep "pong")
+
+    unwrap (Zmqx.send req "ping")
+    reply <- unwrap (Zmqx.receive req)
+    putStrLn ("client got: " <> BS.unpack reply)
+```
+
 ## Test & Build
 
 ```sh
@@ -34,7 +118,7 @@ cabal build --flag debug
 
 - [Simple Dealer](./test/SimpleDealer.hs) + [Simple Router](./test/SimpleRouter.hs)
 
-- [Simpl Pub](./test/SimplePub.hs) + [Simple Sub](./test/SimpleSub.hs)
+- [Simple Pub](./test/SimplePub.hs) + [Simple Sub](./test/SimpleSub.hs)
 
 - [Task Ventilator (Push)](./test/TaskVentilator.hs) -> [Task Worker (Pull + Push)](./test/TaskWorker.hs) -> [Task Sink (Pull)](./test/TaskSink.hs)
 

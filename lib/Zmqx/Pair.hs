@@ -65,7 +65,7 @@ sendQueueSize :: Natural -> Options Pair
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __pair__.
+-- Open a __pair__.
 open :: Options Pair -> IO (Either Error Pair)
 open options =
   catchingOkErrors (open_ options)
@@ -79,7 +79,7 @@ openWith_ context options =
   Socket.openSocketIn context ZMQ_PAIR options Socket.PairExtra
 
 instance ContextualOpen Pair where
-  -- | Open a __pair__ with an explicit context.
+  -- Open a __pair__ with an explicit context.
   openWith context options =
     catchingOkErrors (openWith_ context options)
 

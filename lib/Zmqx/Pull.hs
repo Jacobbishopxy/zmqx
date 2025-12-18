@@ -53,14 +53,14 @@ sendQueueSize :: Natural -> Options Pull
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __puller__.
+-- Open a __puller__.
 open :: Options Pull -> IO (Either Error Pull)
 open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_PULL options Socket.PullExtra
 
 instance ContextualOpen Pull where
-  -- | Open a __puller__ with an explicit context.
+  -- Open a __puller__ with an explicit context.
   openWith :: Context -> Options Pull -> IO (Either Error Pull)
   openWith context options =
     catchingOkErrors do

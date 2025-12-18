@@ -55,7 +55,7 @@ sendQueueSize :: Natural -> Options Sub
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __subscriber__.
+-- Open a __subscriber__.
 open :: Options Sub -> IO (Either Error Sub)
 open options =
   catchingOkErrors do
@@ -67,7 +67,7 @@ open options =
       Socket.SubExtra
 
 instance ContextualOpen Sub where
-  -- | Open a __subscriber__ with an explicit context.
+  -- Open a __subscriber__ with an explicit context.
   openWith :: Context -> Options Sub -> IO (Either Error Sub)
   openWith context options =
     catchingOkErrors do

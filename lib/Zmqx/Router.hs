@@ -53,7 +53,7 @@ sendQueueSize :: Natural -> Options Router
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __router__.
+-- Open a __router__.
 open :: Options Router -> IO (Either Error Router)
 open options =
   catchingOkErrors do
@@ -63,7 +63,7 @@ open options =
       Socket.RouterExtra
 
 instance ContextualOpen Router where
-  -- | Open a __router__ with an explicit context.
+  -- Open a __router__ with an explicit context.
   openWith :: Context -> Options Router -> IO (Either Error Router)
   openWith context options =
     catchingOkErrors do

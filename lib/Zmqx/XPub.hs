@@ -70,7 +70,7 @@ sendQueueSize :: Natural -> Options XPub
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open an __xpublisher__.
+-- Open an __xpublisher__.
 open :: Options XPub -> IO (Either Error XPub)
 open options =
   catchingOkErrors do
@@ -83,7 +83,7 @@ open options =
       Socket.XPubExtra
 
 instance ContextualOpen XPub where
-  -- | Open an __xpublisher__ with an explicit context.
+  -- Open an __xpublisher__ with an explicit context.
   openWith :: Context -> Options XPub -> IO (Either Error XPub)
   openWith context options =
     catchingOkErrors do

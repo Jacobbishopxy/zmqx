@@ -63,7 +63,7 @@ sendQueueSize :: Natural -> Options Req
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __requester__.
+-- Open a __requester__.
 open :: Options Req -> IO (Either Error Req)
 open options =
   catchingOkErrors do
@@ -77,7 +77,7 @@ open options =
       (Socket.ReqExtra messageBuffer)
 
 instance ContextualOpen Req where
-  -- | Open a __requester__ with an explicit context.
+  -- Open a __requester__ with an explicit context.
   openWith :: Context -> Options Req -> IO (Either Error Req)
   openWith context options =
     catchingOkErrors do

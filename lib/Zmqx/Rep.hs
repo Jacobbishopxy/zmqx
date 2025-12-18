@@ -61,14 +61,14 @@ sendQueueSize :: Natural -> Options Rep
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __replier__.
+-- Open a __replier__.
 open :: Options Rep -> IO (Either Error Rep)
 open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_REP options Socket.RepExtra
 
 instance ContextualOpen Rep where
-  -- | Open a __replier__ with an explicit context.
+  -- Open a __replier__ with an explicit context.
   openWith :: Context -> Options Rep -> IO (Either Error Rep)
   openWith context options =
     catchingOkErrors do

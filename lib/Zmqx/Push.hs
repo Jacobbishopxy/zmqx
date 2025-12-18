@@ -49,14 +49,14 @@ sendQueueSize :: Natural -> Options Push
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __pusher__.
+-- Open a __pusher__.
 open :: Options Push -> IO (Either Error Push)
 open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_PUSH options Socket.PushExtra
 
 instance ContextualOpen Push where
-  -- | Open a __pusher__ with an explicit context.
+  -- Open a __pusher__ with an explicit context.
   openWith :: Context -> Options Push -> IO (Either Error Push)
   openWith context options =
     catchingOkErrors do

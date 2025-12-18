@@ -53,7 +53,7 @@ defaultOptions :: Options XSub
 defaultOptions =
   Options.defaultOptions
 
--- | Open an __xsubscriber__.
+-- Open an __xsubscriber__.
 open :: Options XSub -> IO (Either Error XSub)
 open options =
   catchingOkErrors do
@@ -65,7 +65,7 @@ open options =
       Socket.XSubExtra
 
 instance ContextualOpen XSub where
-  -- | Open an __xsubscriber__ with an explicit context.
+  -- Open an __xsubscriber__ with an explicit context.
   openWith :: Context -> Options XSub -> IO (Either Error XSub)
   openWith context options =
     catchingOkErrors do

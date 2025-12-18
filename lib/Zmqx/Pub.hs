@@ -57,7 +57,7 @@ sendQueueSize :: Natural -> Options Pub
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __publisher__.
+-- Open a __publisher__.
 open :: Options Pub -> IO (Either Error Pub)
 open options =
   catchingOkErrors do
@@ -70,7 +70,7 @@ open options =
       Socket.PubExtra
 
 instance ContextualOpen Pub where
-  -- | Open a __publisher__ with an explicit context.
+  -- Open a __publisher__ with an explicit context.
   openWith :: Context -> Options Pub -> IO (Either Error Pub)
   openWith context options =
     catchingOkErrors do

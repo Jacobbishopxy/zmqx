@@ -62,14 +62,14 @@ sendQueueSize :: Natural -> Options Dealer
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __dealer__.
+-- Open a __dealer__.
 open :: Options Dealer -> IO (Either Error Dealer)
 open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_DEALER options Socket.DealerExtra
 
 instance ContextualOpen Dealer where
-  -- | Open a __dealer__ with an explicit context.
+  -- Open a __dealer__ with an explicit context.
   openWith :: Context -> Options Dealer -> IO (Either Error Dealer)
   openWith context options =
     catchingOkErrors do

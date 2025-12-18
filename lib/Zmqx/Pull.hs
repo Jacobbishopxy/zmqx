@@ -19,6 +19,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -52,11 +53,18 @@ sendQueueSize :: Natural -> Options Pull
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __puller__.
+-- Open a __puller__.
 open :: Options Pull -> IO (Either Error Pull)
 open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_PULL options Socket.PullExtra
+
+instance ContextualOpen Pull where
+  -- Open a __puller__ with an explicit context.
+  openWith :: Context -> Options Pull -> IO (Either Error Pull)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn context ZMQ_PULL options Socket.PullExtra
 
 -- | Bind a __puller__ to an __endpoint__.
 --

@@ -21,6 +21,7 @@ where
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -52,7 +53,7 @@ defaultOptions :: Options XSub
 defaultOptions =
   Options.defaultOptions
 
--- | Open an __xsubscriber__.
+-- Open an __xsubscriber__.
 open :: Options XSub -> IO (Either Error XSub)
 open options =
   catchingOkErrors do
@@ -62,6 +63,19 @@ open options =
           <> options
       )
       Socket.XSubExtra
+
+instance ContextualOpen XSub where
+  -- Open an __xsubscriber__ with an explicit context.
+  openWith :: Context -> Options XSub -> IO (Either Error XSub)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn
+        context
+        ZMQ_XSUB
+        ( Options.sockopt ZMQ_SNDHWM 0 -- don't drop subscriptions
+            <> options
+        )
+        Socket.XSubExtra
 
 -- | Bind an __xsubscriber__ to an __endpoint__.
 --

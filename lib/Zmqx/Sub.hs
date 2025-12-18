@@ -21,6 +21,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -54,7 +55,7 @@ sendQueueSize :: Natural -> Options Sub
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __subscriber__.
+-- Open a __subscriber__.
 open :: Options Sub -> IO (Either Error Sub)
 open options =
   catchingOkErrors do
@@ -64,6 +65,19 @@ open options =
           <> options
       )
       Socket.SubExtra
+
+instance ContextualOpen Sub where
+  -- Open a __subscriber__ with an explicit context.
+  openWith :: Context -> Options Sub -> IO (Either Error Sub)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn
+        context
+        ZMQ_SUB
+        ( Options.sockopt ZMQ_SNDHWM 0 -- don't drop subscriptions
+            <> options
+        )
+        Socket.SubExtra
 
 -- | Bind a __subscriber__ to an __endpoint__.
 --

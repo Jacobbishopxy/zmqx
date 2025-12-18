@@ -22,6 +22,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -61,11 +62,18 @@ sendQueueSize :: Natural -> Options Dealer
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open a __dealer__.
+-- Open a __dealer__.
 open :: Options Dealer -> IO (Either Error Dealer)
 open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_DEALER options Socket.DealerExtra
+
+instance ContextualOpen Dealer where
+  -- Open a __dealer__ with an explicit context.
+  openWith :: Context -> Options Dealer -> IO (Either Error Dealer)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn context ZMQ_DEALER options Socket.DealerExtra
 
 -- | Bind a __dealer__ to an __endpoint__.
 --

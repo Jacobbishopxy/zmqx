@@ -172,3 +172,11 @@ test-suite test-recv-for
   type:          exitcode-stdio-1.0
   main-is:       ReceivesFor.hs
   build-depends: bytestring
+
+------------------------------------------------------------------------------------------------
+-- ContextualOpen coverage
+
+test-suite test-contextual-open
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: ContextualOpen.hs

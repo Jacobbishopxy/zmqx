@@ -8,9 +8,12 @@
 
 module Zmqx.Core.Context
   ( RunError (..),
+    Context (..),
+    ContextualOpen (..),
     globalContextRef,
     globalSocketFinalizersRef,
     run,
+    withContext,
   )
 where
 
@@ -22,7 +25,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.SocketFinalizer (SocketFinalizer, runSocketFinalizer)
-import Zmqx.Error (enrichError, unexpectedError)
+import Zmqx.Error (Error, enrichError, unexpectedError)
 import Zmqx.Internal
 
 data RunError
@@ -33,7 +36,21 @@ data RunError
 instance Exception RunError where
   displayException = \case
     RunAlreadyActive -> "Zmqx.run was called while another run is active"
-    ContextNotInitialized -> "Zmqx context not initialized; wrap usage in Zmqx.run"
+    ContextNotInitialized -> "Zmqx context not initialized; wrap usage in Zmqx.run or withContext"
+
+-- | A concrete ØMQ context handle for explicit lifetime management.
+--
+-- This is used by 'withContext' and the @openWith@ helpers to let callers manage
+-- multiple contexts or avoid global state while keeping the existing API intact.
+data Context = Context
+  { contextPtr :: !Zmq_ctx,
+    contextFinalizers :: !(IORef [SocketFinalizer])
+  }
+  deriving stock (Eq)
+
+-- | Class of socket types that can open against an explicit 'Context'.
+class ContextualOpen socket where
+  openWith :: Context -> Options socket -> IO (Either Error socket)
 
 globalContextRef :: IORef (Maybe Zmq_ctx)
 globalContextRef =
@@ -76,10 +93,36 @@ run options action =
 
     cleanupContext context =
       uninterruptibleMask_ $
-        terminateContext context
+        terminateContext globalSocketFinalizersRef context
           `finally` do
             atomicWriteIORef globalSocketFinalizersRef []
             atomicWriteIORef globalContextRef Nothing
+
+-- | Run an action with an explicit context handle, without touching global state.
+--
+-- This is compatible with Plan A's 'run'—callers can either:
+--
+-- * Keep using 'run' (single global context), or
+-- * Use 'withContext' plus @openWith@ to scope sockets to a specific context.
+withContext :: Options () -> (Context -> IO a) -> IO a
+withContext options action =
+  bracket (initializeContext options) cleanupContext \(context, socketFinalizers) ->
+    action
+      Context
+        { contextPtr = context,
+          contextFinalizers = socketFinalizers
+        }
+  where
+    initializeContext :: Options () -> IO (Zmq_ctx, IORef [SocketFinalizer])
+    initializeContext opts = do
+      socketFinalizers <- newIORef []
+      context <- newContext opts
+      pure (context, socketFinalizers)
+
+    cleanupContext :: (Zmq_ctx, IORef [SocketFinalizer]) -> IO ()
+    cleanupContext (context, socketFinalizers) =
+      uninterruptibleMask_ $
+        terminateContext socketFinalizers context
 
 withRunGuard :: IO a -> IO a
 withRunGuard =
@@ -101,8 +144,8 @@ newContext options = do
   pure context
 
 -- Terminate a context.
-terminateContext :: Zmq_ctx -> IO ()
-terminateContext context = do
+terminateContext :: IORef [SocketFinalizer] -> Zmq_ctx -> IO ()
+terminateContext socketFinalizers context = do
   -- Shut down the context, causing any blocking operations on sockets to return ETERM
   zmq_ctx_shutdown context >>= \case
     Left errno ->
@@ -114,9 +157,9 @@ terminateContext context = do
 
   -- Close all of the open sockets
   -- Why reverse: close in the order they were acquired :shrug:
-  finalizers <- readIORef globalSocketFinalizersRef
+  finalizers <- readIORef socketFinalizers
   for_ (reverse finalizers) runSocketFinalizer
-  atomicWriteIORef globalSocketFinalizersRef []
+  atomicWriteIORef socketFinalizers []
 
   -- Terminate the context
   let loop maybeErr =

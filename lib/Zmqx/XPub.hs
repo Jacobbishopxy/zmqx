@@ -24,6 +24,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -69,7 +70,7 @@ sendQueueSize :: Natural -> Options XPub
 sendQueueSize =
   Options.sendQueueSize
 
--- | Open an __xpublisher__.
+-- Open an __xpublisher__.
 open :: Options XPub -> IO (Either Error XPub)
 open options =
   catchingOkErrors do
@@ -80,6 +81,20 @@ open options =
           <> options
       )
       Socket.XPubExtra
+
+instance ContextualOpen XPub where
+  -- Open an __xpublisher__ with an explicit context.
+  openWith :: Context -> Options XPub -> IO (Either Error XPub)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn
+        context
+        ZMQ_XPUB
+        ( Options.sockopt ZMQ_RCVHWM 0 -- don't drop subscriptions
+            <> Options.sockopt ZMQ_XPUB_NODROP 1 -- not lossy
+            <> options
+        )
+        Socket.XPubExtra
 
 -- | Bind an __xpublisher__ to an __endpoint__.
 --

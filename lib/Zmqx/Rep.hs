@@ -5,7 +5,6 @@ module Zmqx.Rep
     defaultOptions,
     sendQueueSize,
     open,
-    openWith,
     bind,
     unbind,
     connect,
@@ -22,7 +21,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
-import Zmqx.Core.Context (Context)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -68,11 +67,12 @@ open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_REP options Socket.RepExtra
 
--- | Open a __replier__ with an explicit context.
-openWith :: Context -> Options Rep -> IO (Either Error Rep)
-openWith context options =
-  catchingOkErrors do
-    Socket.openSocketIn context ZMQ_REP options Socket.RepExtra
+instance ContextualOpen Rep where
+  -- | Open a __replier__ with an explicit context.
+  openWith :: Context -> Options Rep -> IO (Either Error Rep)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn context ZMQ_REP options Socket.RepExtra
 
 -- | Bind a __replier__ to an __endpoint__.
 --

@@ -5,7 +5,6 @@ module Zmqx.Push
     defaultOptions,
     sendQueueSize,
     open,
-    openWith,
     bind,
     unbind,
     connect,
@@ -20,7 +19,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
-import Zmqx.Core.Context (Context)
+import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Socket (CanSend, CanSends, Socket (..))
@@ -56,11 +55,12 @@ open options =
   catchingOkErrors do
     Socket.openSocket ZMQ_PUSH options Socket.PushExtra
 
--- | Open a __pusher__ with an explicit context.
-openWith :: Context -> Options Push -> IO (Either Error Push)
-openWith context options =
-  catchingOkErrors do
-    Socket.openSocketIn context ZMQ_PUSH options Socket.PushExtra
+instance ContextualOpen Push where
+  -- | Open a __pusher__ with an explicit context.
+  openWith :: Context -> Options Push -> IO (Either Error Push)
+  openWith context options =
+    catchingOkErrors do
+      Socket.openSocketIn context ZMQ_PUSH options Socket.PushExtra
 
 -- | Bind a __pusher__ to an __endpoint__.
 --

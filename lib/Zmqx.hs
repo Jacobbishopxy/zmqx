@@ -9,6 +9,7 @@ module Zmqx
     withContext,
     RunError (..),
     Context,
+    ContextualOpen (..),
 
     -- ** Main options
     Options.ioThreads,

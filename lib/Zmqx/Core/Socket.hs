@@ -129,6 +129,7 @@ class CanReceivesFor a where
 -- Throws ok errors
 openSocket :: Zmq_socket_type -> Options.Options (Socket a) -> Extra a -> IO (Socket a)
 openSocket socketType options extra =
+  -- Plan A compatibility: use the global context set up by 'run'.
   getGlobalContext >>= \context ->
     openSocketIn context socketType options extra
 

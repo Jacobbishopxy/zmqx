@@ -9,6 +9,7 @@
 module Zmqx.Core.Context
   ( RunError (..),
     Context (..),
+    ContextualOpen (..),
     globalContextRef,
     globalSocketFinalizersRef,
     run,
@@ -24,7 +25,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.SocketFinalizer (SocketFinalizer, runSocketFinalizer)
-import Zmqx.Error (enrichError, unexpectedError)
+import Zmqx.Error (Error, enrichError, unexpectedError)
 import Zmqx.Internal
 
 data RunError
@@ -35,13 +36,21 @@ data RunError
 instance Exception RunError where
   displayException = \case
     RunAlreadyActive -> "Zmqx.run was called while another run is active"
-    ContextNotInitialized -> "Zmqx context not initialized; wrap usage in Zmqx.run"
+    ContextNotInitialized -> "Zmqx context not initialized; wrap usage in Zmqx.run or withContext"
 
+-- | A concrete ØMQ context handle for explicit lifetime management.
+--
+-- This is used by 'withContext' and the @openWith@ helpers to let callers manage
+-- multiple contexts or avoid global state while keeping the existing API intact.
 data Context = Context
   { contextPtr :: !Zmq_ctx,
     contextFinalizers :: !(IORef [SocketFinalizer])
   }
   deriving stock (Eq)
+
+-- | Class of socket types that can open against an explicit 'Context'.
+class ContextualOpen socket where
+  openWith :: Context -> Options socket -> IO (Either Error socket)
 
 globalContextRef :: IORef (Maybe Zmq_ctx)
 globalContextRef =
@@ -90,6 +99,11 @@ run options action =
             atomicWriteIORef globalContextRef Nothing
 
 -- | Run an action with an explicit context handle, without touching global state.
+--
+-- This is compatible with Plan A's 'run'—callers can either:
+--
+-- * Keep using 'run' (single global context), or
+-- * Use 'withContext' plus @openWith@ to scope sockets to a specific context.
 withContext :: Options () -> (Context -> IO a) -> IO a
 withContext options action =
   bracket (initializeContext options) cleanupContext \(context, socketFinalizers) ->

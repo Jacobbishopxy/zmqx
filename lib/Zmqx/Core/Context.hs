@@ -8,9 +8,11 @@
 
 module Zmqx.Core.Context
   ( RunError (..),
+    Context (..),
     globalContextRef,
     globalSocketFinalizersRef,
     run,
+    withContext,
   )
 where
 
@@ -34,6 +36,12 @@ instance Exception RunError where
   displayException = \case
     RunAlreadyActive -> "Zmqx.run was called while another run is active"
     ContextNotInitialized -> "Zmqx context not initialized; wrap usage in Zmqx.run"
+
+data Context = Context
+  { contextPtr :: !Zmq_ctx,
+    contextFinalizers :: !(IORef [SocketFinalizer])
+  }
+  deriving stock (Eq)
 
 globalContextRef :: IORef (Maybe Zmq_ctx)
 globalContextRef =
@@ -76,10 +84,31 @@ run options action =
 
     cleanupContext context =
       uninterruptibleMask_ $
-        terminateContext context
+        terminateContext globalSocketFinalizersRef context
           `finally` do
             atomicWriteIORef globalSocketFinalizersRef []
             atomicWriteIORef globalContextRef Nothing
+
+-- | Run an action with an explicit context handle, without touching global state.
+withContext :: Options () -> (Context -> IO a) -> IO a
+withContext options action =
+  bracket (initializeContext options) cleanupContext \(context, socketFinalizers) ->
+    action
+      Context
+        { contextPtr = context,
+          contextFinalizers = socketFinalizers
+        }
+  where
+    initializeContext :: Options () -> IO (Zmq_ctx, IORef [SocketFinalizer])
+    initializeContext opts = do
+      socketFinalizers <- newIORef []
+      context <- newContext opts
+      pure (context, socketFinalizers)
+
+    cleanupContext :: (Zmq_ctx, IORef [SocketFinalizer]) -> IO ()
+    cleanupContext (context, socketFinalizers) =
+      uninterruptibleMask_ $
+        terminateContext socketFinalizers context
 
 withRunGuard :: IO a -> IO a
 withRunGuard =
@@ -101,8 +130,8 @@ newContext options = do
   pure context
 
 -- Terminate a context.
-terminateContext :: Zmq_ctx -> IO ()
-terminateContext context = do
+terminateContext :: IORef [SocketFinalizer] -> Zmq_ctx -> IO ()
+terminateContext socketFinalizers context = do
   -- Shut down the context, causing any blocking operations on sockets to return ETERM
   zmq_ctx_shutdown context >>= \case
     Left errno ->
@@ -114,9 +143,9 @@ terminateContext context = do
 
   -- Close all of the open sockets
   -- Why reverse: close in the order they were acquired :shrug:
-  finalizers <- readIORef globalSocketFinalizersRef
+  finalizers <- readIORef socketFinalizers
   for_ (reverse finalizers) runSocketFinalizer
-  atomicWriteIORef globalSocketFinalizersRef []
+  atomicWriteIORef socketFinalizers []
 
   -- Terminate the context
   let loop maybeErr =

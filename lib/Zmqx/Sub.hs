@@ -5,6 +5,7 @@ module Zmqx.Sub
     defaultOptions,
     sendQueueSize,
     open,
+    openWith,
     bind,
     unbind,
     connect,
@@ -21,6 +22,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -59,6 +61,18 @@ open :: Options Sub -> IO (Either Error Sub)
 open options =
   catchingOkErrors do
     Socket.openSocket
+      ZMQ_SUB
+      ( Options.sockopt ZMQ_SNDHWM 0 -- don't drop subscriptions
+          <> options
+      )
+      Socket.SubExtra
+
+-- | Open a __subscriber__ with an explicit context.
+openWith :: Context -> Options Sub -> IO (Either Error Sub)
+openWith context options =
+  catchingOkErrors do
+    Socket.openSocketIn
+      context
       ZMQ_SUB
       ( Options.sockopt ZMQ_SNDHWM 0 -- don't drop subscriptions
           <> options

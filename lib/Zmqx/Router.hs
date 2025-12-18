@@ -5,6 +5,7 @@ module Zmqx.Router
     defaultOptions,
     sendQueueSize,
     open,
+    openWith,
     bind,
     unbind,
     connect,
@@ -19,6 +20,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -57,6 +59,16 @@ open :: Options Router -> IO (Either Error Router)
 open options =
   catchingOkErrors do
     Socket.openSocket
+      ZMQ_ROUTER
+      (Options.sockopt ZMQ_ROUTER_MANDATORY 1 <> options)
+      Socket.RouterExtra
+
+-- | Open a __router__ with an explicit context.
+openWith :: Context -> Options Router -> IO (Either Error Router)
+openWith context options =
+  catchingOkErrors do
+    Socket.openSocketIn
+      context
       ZMQ_ROUTER
       (Options.sockopt ZMQ_ROUTER_MANDATORY 1 <> options)
       Socket.RouterExtra

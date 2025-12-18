@@ -5,6 +5,7 @@ module Zmqx.Req
     defaultOptions,
     sendQueueSize,
     open,
+    openWith,
     bind,
     unbind,
     connect,
@@ -23,6 +24,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -68,6 +70,20 @@ open options =
   catchingOkErrors do
     messageBuffer <- newIORef Nothing
     Socket.openSocket
+      ZMQ_REQ
+      ( Options.sockopt ZMQ_REQ_CORRELATE 1
+          <> Options.sockopt ZMQ_REQ_RELAXED 1
+          <> options
+      )
+      (Socket.ReqExtra messageBuffer)
+
+-- | Open a __requester__ with an explicit context.
+openWith :: Context -> Options Req -> IO (Either Error Req)
+openWith context options =
+  catchingOkErrors do
+    messageBuffer <- newIORef Nothing
+    Socket.openSocketIn
+      context
       ZMQ_REQ
       ( Options.sockopt ZMQ_REQ_CORRELATE 1
           <> Options.sockopt ZMQ_REQ_RELAXED 1

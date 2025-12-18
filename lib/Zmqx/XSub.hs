@@ -4,6 +4,7 @@ module Zmqx.XSub
   ( XSub,
     defaultOptions,
     open,
+    openWith,
     bind,
     unbind,
     connect,
@@ -21,6 +22,7 @@ where
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
+import Zmqx.Core.Context (Context)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -57,6 +59,18 @@ open :: Options XSub -> IO (Either Error XSub)
 open options =
   catchingOkErrors do
     Socket.openSocket
+      ZMQ_XSUB
+      ( Options.sockopt ZMQ_SNDHWM 0 -- don't drop subscriptions
+          <> options
+      )
+      Socket.XSubExtra
+
+-- | Open an __xsubscriber__ with an explicit context.
+openWith :: Context -> Options XSub -> IO (Either Error XSub)
+openWith context options =
+  catchingOkErrors do
+    Socket.openSocketIn
+      context
       ZMQ_XSUB
       ( Options.sockopt ZMQ_SNDHWM 0 -- don't drop subscriptions
           <> options

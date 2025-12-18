@@ -5,7 +5,9 @@ module Zmqx.Pair
     defaultOptions,
     sendQueueSize,
     open,
+    openWith,
     open_,
+    openWith_,
     bind,
     unbind,
     connect,
@@ -24,6 +26,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
@@ -71,6 +74,14 @@ open options =
 open_ :: Options Pair -> IO Pair
 open_ options =
   Socket.openSocket ZMQ_PAIR options Socket.PairExtra
+
+openWith :: Context -> Options Pair -> IO (Either Error Pair)
+openWith context options =
+  catchingOkErrors (openWith_ context options)
+
+openWith_ :: Context -> Options Pair -> IO Pair
+openWith_ context options =
+  Socket.openSocketIn context ZMQ_PAIR options Socket.PairExtra
 
 -- | Bind a __pair__ to an __endpoint__.
 --

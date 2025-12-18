@@ -6,7 +6,9 @@
 module Zmqx
   ( -- * Main
     run,
+    withContext,
     RunError (..),
+    Context,
 
     -- ** Main options
     Options.ioThreads,

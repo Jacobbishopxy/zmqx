@@ -7,6 +7,7 @@ module Zmqx.Pub
     lossy,
     sendQueueSize,
     open,
+    openWith,
     bind,
     unbind,
     connect,
@@ -21,6 +22,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import Zmqx.Core.Context (Context)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Socket (CanSend, CanSends, Socket (..))
@@ -61,6 +63,19 @@ open :: Options Pub -> IO (Either Error Pub)
 open options =
   catchingOkErrors do
     Socket.openSocket
+      ZMQ_PUB
+      ( Options.sockopt ZMQ_RCVHWM 0 -- don't drop subscriptions
+          <> Options.sockopt ZMQ_XPUB_NODROP 1 -- not lossy
+          <> options
+      )
+      Socket.PubExtra
+
+-- | Open a __publisher__ with an explicit context.
+openWith :: Context -> Options Pub -> IO (Either Error Pub)
+openWith context options =
+  catchingOkErrors do
+    Socket.openSocketIn
+      context
       ZMQ_PUB
       ( Options.sockopt ZMQ_RCVHWM 0 -- don't drop subscriptions
           <> Options.sockopt ZMQ_XPUB_NODROP 1 -- not lossy

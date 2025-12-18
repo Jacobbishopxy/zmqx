@@ -12,6 +12,7 @@ module Zmqx.Core.Socket
     CanReceives (..),
     CanReceivesFor (..),
     openSocket,
+    openSocketIn,
     usingSocket,
     bind,
     unbind,
@@ -62,7 +63,7 @@ import Numeric (showHex)
 import System.IO qualified as IO
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix.Types (Fd (..))
-import Zmqx.Core.Context (RunError (..), globalContextRef, globalSocketFinalizersRef)
+import Zmqx.Core.Context (Context (..), RunError (..), globalContextRef, globalSocketFinalizersRef)
 import Zmqx.Core.IO (keepAlive)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.SocketFinalizer (makeSocketFinalizer)
@@ -127,17 +128,18 @@ class CanReceivesFor a where
 
 -- Throws ok errors
 openSocket :: Zmq_socket_type -> Options.Options (Socket a) -> Extra a -> IO (Socket a)
-openSocket socketType options extra = do
-  context <-
-    readIORef globalContextRef >>= \case
-      Nothing -> throwIO ContextNotInitialized
-      Just ctx -> pure ctx
+openSocket socketType options extra =
+  getGlobalContext >>= \context ->
+    openSocketIn context socketType options extra
+
+openSocketIn :: Context -> Zmq_socket_type -> Options.Options (Socket a) -> Extra a -> IO (Socket a)
+openSocketIn Context {contextPtr, contextFinalizers} socketType options extra = do
   lock@(MVar canary#) <- newMVar ()
   zsocket <-
     mask_ do
-      zsocket <- zhs_socket context socketType
+      zsocket <- zhs_socket contextPtr socketType
       finalizer <- makeSocketFinalizer (zmq_close zsocket) canary#
-      atomicModifyIORef' globalSocketFinalizersRef \finalizers -> (finalizer : finalizers, ())
+      atomicModifyIORef' contextFinalizers \finalizers -> (finalizer : finalizers, ())
       pure zsocket
   Options.setSocketOptions zsocket options
   pure
@@ -147,6 +149,17 @@ openSocket socketType options extra = do
         name = Options.optionsName options,
         extra
       }
+
+getGlobalContext :: IO Context
+getGlobalContext =
+  readIORef globalContextRef >>= \case
+    Nothing -> throwIO ContextNotInitialized
+    Just context ->
+      pure
+        Context
+          { contextPtr = context,
+            contextFinalizers = globalSocketFinalizersRef
+          }
 
 usingSocket :: Socket a -> IO b -> IO b
 usingSocket Socket {lock, zsocket} action =

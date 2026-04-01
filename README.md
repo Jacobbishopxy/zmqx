@@ -73,6 +73,9 @@ have a socket opened with `openWith`, the usual helper operations (`bind`, `conn
 silently falling back to the global `run` context. The remaining deliberate global entrypoints are
 the `*.open` functions themselves.
 
+There is no `withSocket` helper on the public API today. That is deliberate: the library currently
+prefers straight-line, context-scoped socket lifetime over per-socket bracketing.
+
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 

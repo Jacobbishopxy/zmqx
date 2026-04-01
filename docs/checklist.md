@@ -290,17 +290,22 @@ Acceptance criteria:
 
 Current state:
 
-- [ ] Decision made on scoped socket helpers.
+- [x] Decision made on scoped socket helpers.
 
 Implementation checklist:
 
-- [ ] Decide whether `withSocket` adds real ergonomic value.
-- [ ] If added, make it compose cleanly with `withContext`.
-- [ ] Avoid fighting the current straight-line API style.
+- [x] Decide whether `withSocket` adds real ergonomic value.
+- [x] Prefer the current straight-line, context-scoped socket model for now.
+- [x] Defer `withSocket` unless real usage shows repeated bracket boilerplate or socket-escape bugs.
 
 Acceptance criteria:
 
-- [ ] helper has a clear ergonomic win and test coverage.
+- [x] no helper is added because it does not currently have a clear ergonomic win.
+
+Files:
+
+- [x] `README.md`
+- [x] `docs/superpowers/specs/2026-04-01-with-socket-design.md`
 
 ### 12. Evaluate `ZmqxT` and `runZmqx` only after the explicit-context path is solid
 

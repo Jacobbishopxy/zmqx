@@ -138,6 +138,7 @@ instance Show Zmq_error where
     EPROTONOSUPPORT -> "EPROTONOSUPPORT"
     ETERM -> "ETERM"
     ETIMEDOUT -> "ETIMEDOUT"
+    Zmq_error n -> "Zmq_error " ++ show n
 
 pattern EADDRINUSE :: Zmq_error
 pattern EADDRINUSE = Zmq_error Zmqx.Internal.Bindings.EADDRINUSE
@@ -232,39 +233,7 @@ pattern ETERM = Zmq_error Zmqx.Internal.Bindings.ETERM
 pattern ETIMEDOUT :: Zmq_error
 pattern ETIMEDOUT = Zmq_error Zmqx.Internal.Bindings.ETIMEDOUT
 
-{-# COMPLETE
-  EADDRINUSE,
-  EADDRNOTAVAIL,
-  EAFNOSUPPORT,
-  EAGAIN,
-  EBADF,
-  ECONNABORTED,
-  ECONNREFUSED,
-  ECONNRESET,
-  EFAULT,
-  EFSM,
-  EHOSTUNREACH,
-  EINPROGRESS,
-  EINTR,
-  EINVAL,
-  EMFILE,
-  EMSGSIZE,
-  EMTHREAD,
-  ENETDOWN,
-  ENETRESET,
-  ENETUNREACH,
-  ENOBUFS,
-  ENOCOMPATPROTO,
-  ENODEV,
-  ENOENT,
-  ENOMEM,
-  ENOTCONN,
-  ENOTSOCK,
-  ENOTSUP,
-  EPROTONOSUPPORT,
-  ETERM,
-  ETIMEDOUT
-  #-}
+-- COMPLETE pragma intentionally missing for forward-compatibility
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Zmq_events

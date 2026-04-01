@@ -1,51 +1,56 @@
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Zmqx.Core.Monitor
   ( Event (..),
+    decodeMonitorEvent,
     monitor,
   )
 where
 
 import Control.Exception (throwIO)
-import Control.Monad (guard)
-import Data.Bits (unsafeShiftL, (.|.))
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
-import Data.Int (Int16, Int32)
+import Data.Int (Int32)
+import Data.Functor ((<&>))
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Text.Short qualified as Text.Short
-import Data.Word (Word8)
-import Foreign.C (CInt, Errno)
-import System.Random qualified as Random
+import Data.Unique (hashUnique, newUnique)
+import Foreign.C.Error (Errno (..))
+import Foreign.C.Types (CUShort (..))
+import Foreign.Marshal.Alloc (allocaBytes)
+import Foreign.Marshal.Utils (copyBytes)
+import Foreign.Storable (peekByteOff)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Error (Error (..), catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Internal
 import Zmqx.Pair qualified as Pair
 
--- Generate a random 16-byte bytestring
-generateRandomBytes :: Int -> IO Text
-generateRandomBytes len = do
-  gen <- Random.newStdGen -- Create a new random number generator
-  let bytes = Random.randoms gen -- Infinite list of random bytes
-  return $ Text.pack $ take len bytes
+generateMonitorEndpoint :: IO Text
+generateMonitorEndpoint = do
+  unique <- newUnique
+  pure ("inproc://zmqx-monitor-" <> Text.pack (show (hashUnique unique)))
 
 monitor :: Socket.Socket a -> IO (Either Error (IO (Either Error Event)))
-monitor Socket.Socket {zsocket, name} = do
-  endpointBytes <- generateRandomBytes 16
-  let endpoint = Text.Short.toText "inproc://" <> endpointBytes
+monitor Socket.Socket {zsocket, context, name} = do
+  endpoint <- generateMonitorEndpoint
   catchingOkErrors do
     zhs_socket_monitor zsocket endpoint ZMQ_EVENT_ALL
-    -- TODO don't give this a name
-    pair <- Pair.open_ (if Text.null name then Options.name (name <> " monitor") else Options.defaultOptions)
+    pair <-
+      Pair.openWith_
+        context
+        ( if Text.null name
+            then Options.defaultOptions
+            else Options.name (name <> " monitor")
+        )
     Pair.connect_ pair endpoint
     let receiveEvent :: IO (Either Error Event)
         receiveEvent =
           Pair.receives pair >>= \case
             Left err -> pure (Left err)
             Right message ->
-              case parseEvent message of
+              decodeMonitorEvent message >>= \case
                 Nothing -> receiveEvent
                 Just event -> pure (Right event)
     pure receiveEvent
@@ -66,57 +71,81 @@ data Event
   | HandshakeSucceeded
   | Listening {-# UNPACK #-} !Zmq_fd
   | MonitorStopped
+  deriving stock (Eq)
 
-parseEvent :: [ByteString] -> Maybe Event
-parseEvent = \case
-  [typeBytes, valueBytes] -> do
-    typ <- parseEventType typeBytes
-    case typ of
-      ZMQ_EVENT_ACCEPTED -> Accepted <$> parseFdEventValue valueBytes
-      ZMQ_EVENT_ACCEPT_FAILED -> AcceptFailed <$> parseErrnoEventValue valueBytes
-      ZMQ_EVENT_BIND_FAILED -> BindFailed <$> parseErrnoEventValue valueBytes
-      ZMQ_EVENT_CLOSED -> Closed <$> parseFdEventValue valueBytes
-      ZMQ_EVENT_CLOSE_FAILED -> CloseFailed <$> parseErrnoEventValue valueBytes
-      ZMQ_EVENT_CONNECTED -> Connected <$> parseFdEventValue valueBytes
-      ZMQ_EVENT_CONNECT_DELAYED -> pure ConnectDelayed
-      ZMQ_EVENT_CONNECT_RETRIED -> ConnectRetried <$> parseIntEventValue valueBytes
-      ZMQ_EVENT_DISCONNECTED -> Disconnected <$> parseFdEventValue valueBytes
-      ZMQ_EVENT_HANDSHAKE_FAILED_AUTH -> HandshakeFailedAuth <$> parseIntEventValue valueBytes
-      ZMQ_EVENT_HANDSHAKE_FAILED_NO_DETAIL -> pure HandshakeFailedNoDetail
-      ZMQ_EVENT_HANDSHAKE_FAILED_PROTOCOL -> HandshakeFailedProtocol <$> undefined
-      ZMQ_EVENT_HANDSHAKE_SUCCEEDED -> pure HandshakeSucceeded
-      ZMQ_EVENT_LISTENING -> Listening <$> parseFdEventValue valueBytes
-      ZMQ_EVENT_MONITOR_STOPPED -> pure MonitorStopped
-      _ -> Nothing
-  _ -> Nothing
+instance Show Event where
+  show event =
+    case event of
+      AcceptFailed errno -> "AcceptFailed " <> showErrno errno
+      Accepted fd -> "Accepted " <> show fd
+      BindFailed errno -> "BindFailed " <> showErrno errno
+      CloseFailed errno -> "CloseFailed " <> showErrno errno
+      Closed fd -> "Closed " <> show fd
+      ConnectDelayed -> "ConnectDelayed"
+      ConnectRetried n -> "ConnectRetried " <> show n
+      Connected fd -> "Connected " <> show fd
+      Disconnected fd -> "Disconnected " <> show fd
+      HandshakeFailedAuth n -> "HandshakeFailedAuth " <> show n
+      HandshakeFailedNoDetail -> "HandshakeFailedNoDetail"
+      HandshakeFailedProtocol protocolError -> "HandshakeFailedProtocol " <> show protocolError
+      HandshakeSucceeded -> "HandshakeSucceeded"
+      Listening fd -> "Listening " <> show fd
+      MonitorStopped -> "MonitorStopped"
+    where
+      showErrno (Errno errno) =
+        show errno
+
+decodeMonitorEvent :: [ByteString] -> IO (Maybe Event)
+decodeMonitorEvent = \case
+  [eventFrame, _endpoint] ->
+    parseEventFrame eventFrame <&> \case
+      Nothing -> Nothing
+      Just (typ, value) ->
+        case typ of
+          ZMQ_EVENT_ACCEPTED -> Just (Accepted (parseFdEventValue value))
+          ZMQ_EVENT_ACCEPT_FAILED -> Just (AcceptFailed (parseErrnoEventValue value))
+          ZMQ_EVENT_BIND_FAILED -> Just (BindFailed (parseErrnoEventValue value))
+          ZMQ_EVENT_CLOSED -> Just (Closed (parseFdEventValue value))
+          ZMQ_EVENT_CLOSE_FAILED -> Just (CloseFailed (parseErrnoEventValue value))
+          ZMQ_EVENT_CONNECTED -> Just (Connected (parseFdEventValue value))
+          ZMQ_EVENT_CONNECT_DELAYED -> Just ConnectDelayed
+          ZMQ_EVENT_CONNECT_RETRIED -> Just (ConnectRetried (parseIntEventValue value))
+          ZMQ_EVENT_DISCONNECTED -> Just (Disconnected (parseFdEventValue value))
+          ZMQ_EVENT_HANDSHAKE_FAILED_AUTH -> Just (HandshakeFailedAuth (parseIntEventValue value))
+          ZMQ_EVENT_HANDSHAKE_FAILED_NO_DETAIL -> Just HandshakeFailedNoDetail
+          ZMQ_EVENT_HANDSHAKE_FAILED_PROTOCOL -> Just (HandshakeFailedProtocol (parseProtocolErrorValue value))
+          ZMQ_EVENT_HANDSHAKE_SUCCEEDED -> Just HandshakeSucceeded
+          ZMQ_EVENT_LISTENING -> Just (Listening (parseFdEventValue value))
+          ZMQ_EVENT_MONITOR_STOPPED -> Just MonitorStopped
+          _ -> Nothing
+  _ -> pure Nothing
   where
-    parseEventType :: ByteString -> Maybe Zmq_socket_events
-    parseEventType bytes = do
-      guard (ByteString.length bytes == 2)
-      let w0 = fromIntegral @Word8 @Int16 (ByteString.index bytes 0)
-      let w1 = fromIntegral @Word8 @Int16 (ByteString.index bytes 1)
-      pure (Zmq_socket_events (fromIntegral @Int16 @CInt (unsafeShiftL w0 8 .|. w1)))
+    parseEventFrame :: ByteString -> IO (Maybe (Zmq_socket_events, Int32))
+    parseEventFrame bytes
+      | ByteString.length bytes /= 6 = pure Nothing
+      | otherwise =
+          ByteString.useAsCString bytes \ptr -> do
+            allocaBytes 6 \alignedPtr -> do
+              copyBytes alignedPtr ptr 6
+              typ <- peekByteOff alignedPtr 0 :: IO CUShort
+              value <- peekByteOff alignedPtr 2 :: IO Int32
+              pure (Just (Zmq_socket_events (fromIntegral typ), value))
 
-    parseEventValue :: ByteString -> Maybe Int32
-    parseEventValue bytes = do
-      guard (ByteString.length bytes == 4)
-      let w0 = fromIntegral @Word8 @Int32 (ByteString.index bytes 0)
-      let w1 = fromIntegral @Word8 @Int32 (ByteString.index bytes 1)
-      let w2 = fromIntegral @Word8 @Int32 (ByteString.index bytes 2)
-      let w3 = fromIntegral @Word8 @Int32 (ByteString.index bytes 3)
-      pure (unsafeShiftL w0 24 .|. unsafeShiftL w1 16 .|. unsafeShiftL w2 8 .|. w3)
-
-    parseErrnoEventValue :: ByteString -> Maybe Errno
+    parseErrnoEventValue :: Int32 -> Errno
     parseErrnoEventValue =
-      fmap undefined . parseEventValue
+      Errno . fromIntegral
 
-    parseFdEventValue :: ByteString -> Maybe Zmq_fd
+    parseFdEventValue :: Int32 -> Zmq_fd
     parseFdEventValue =
-      fmap undefined . parseEventValue
+      fromIntegral
 
-    parseIntEventValue :: ByteString -> Maybe Int
+    parseIntEventValue :: Int32 -> Int
     parseIntEventValue =
-      fmap (fromIntegral @Int32 @Int) . parseEventValue
+      fromIntegral
+
+    parseProtocolErrorValue :: Int32 -> Zmq_protocol_error
+    parseProtocolErrorValue =
+      Zmq_protocol_error . fromIntegral
 
 zhs_socket_monitor :: Zmq_socket -> Text -> Zmq_socket_events -> IO ()
 zhs_socket_monitor socket endpoint events =

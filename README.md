@@ -102,6 +102,25 @@ main =
     putStrLn ("client got: " <> BS.unpack reply)
 ```
 
+### Shutdown Semantics
+
+`Zmqx.run` and `Zmqx.withContext` are strict about socket and context teardown. On exit they:
+
+1. call `zmq_ctx_shutdown`
+2. run registered socket finalizers
+3. wait for `zmq_ctx_term` to complete
+
+This is intentional. The default API is correctness-first and does not silently abandon stuck
+cleanup. If shutdown blocks, treat that as a real lifetime bug to investigate. Use
+`Zmqx.pendingSockets` with an explicit `Context` to inspect whether sockets are still pending
+before teardown; treat that count as advisory diagnostics, not as an exact live-socket census.
+
+This does not promise delivery-preserving shutdown for queued outbound messages. Contexts are
+created with `ZMQ_BLOCKY = 0`, so new sockets default to `ZMQ_LINGER = 0`.
+
+There is no timeout or best-effort shutdown mode on the main API today. If one is added later,
+it will be opt-in rather than changing the default semantics of `run` or `withContext`.
+
 ## Test & Build
 
 ```sh

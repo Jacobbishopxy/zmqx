@@ -12,6 +12,7 @@ module Zmqx.Core.Context
     ContextualOpen (..),
     globalContextRef,
     globalSocketFinalizersRef,
+    pendingSockets,
     run,
     withContext,
   )
@@ -24,7 +25,7 @@ import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.SocketFinalizer (SocketFinalizer, runSocketFinalizer)
+import Zmqx.Core.SocketFinalizer (SocketFinalizer, compactSocketFinalizers, runSocketFinalizer)
 import Zmqx.Error (Error, enrichError, unexpectedError)
 import Zmqx.Internal
 
@@ -69,7 +70,6 @@ globalRunLock =
 -- This design allows us to acquire sockets with straight-line syntax, rather than incur a syntactic indent due to
 -- bracketing a resource acquire/release.
 --
--- FIXME compact this when a finalizer runs, probably
 globalSocketFinalizersRef :: IORef [SocketFinalizer]
 globalSocketFinalizersRef =
   unsafePerformIO (newIORef [])
@@ -78,6 +78,13 @@ globalSocketFinalizersRef =
 -- | Run a main function.
 --
 -- This function must be called exactly once at a time, and must wrap all other calls to this library.
+--
+-- Shutdown is strict about socket and context teardown: cleanup waits for socket finalizers to
+-- run and for @zmq_ctx_term@ to complete. This keeps the default API correctness-first. It does
+-- not promise delivery-preserving shutdown for queued outbound messages: we set @ZMQ_BLOCKY = 0@
+-- when creating the context, so new sockets default to @ZMQ_LINGER = 0@. If an opt-in timeout or
+-- best-effort shutdown mode is added later, it should live on a separate API path rather than
+-- weakening 'run''s current contract.
 run :: Options () -> IO a -> IO a
 run options action =
   withRunGuard do
@@ -104,6 +111,12 @@ run options action =
 --
 -- * Keep using 'run' (single global context), or
 -- * Use 'withContext' plus @openWith@ to scope sockets to a specific context.
+--
+-- Like 'run', teardown is strict about socket and context termination. It does not promise that
+-- queued outbound messages will be drained before return, because contexts are created with
+-- @ZMQ_BLOCKY = 0@. Callers that need timeout or best-effort shutdown semantics should use a
+-- dedicated opt-in API if one is added later, rather than relying on 'withContext' to abandon
+-- cleanup work.
 withContext :: Options () -> (Context -> IO a) -> IO a
 withContext options action =
   bracket (initializeContext options) cleanupContext \(context, socketFinalizers) ->
@@ -124,6 +137,17 @@ withContext options action =
       uninterruptibleMask_ $
         terminateContext socketFinalizers context
 
+-- | Return the number of sockets that would still require teardown work for this context.
+--
+-- This is an opt-in diagnostic helper. It compacts dead or already-closed finalizers before
+-- counting, so a non-zero result means there are still registered sockets whose close action
+-- has not completed yet. Treat the result as advisory diagnostics, not as an exact live-socket
+-- census. The helper itself does not keep sockets alive.
+pendingSockets :: Context -> IO Int
+pendingSockets Context {contextFinalizers} = do
+  compactSocketFinalizers contextFinalizers
+  length <$> readIORef contextFinalizers
+
 withRunGuard :: IO a -> IO a
 withRunGuard =
   bracket acquireRunLock releaseRunLock . const
@@ -143,7 +167,13 @@ newContext options = do
   Options.setContextOptions context options
   pure context
 
--- Terminate a context.
+-- Terminate a context strictly.
+--
+-- The current policy is to shut down the context, run all known socket finalizers, and then wait
+-- until @zmq_ctx_term@ succeeds. Contexts are created with @ZMQ_BLOCKY = 0@, so this guarantees
+-- strict socket/context teardown rather than delivery-preserving shutdown for queued outbound
+-- messages. We do not currently expose timeout or best-effort termination on this path because
+-- that would weaken the main API's lifetime guarantees.
 terminateContext :: IORef [SocketFinalizer] -> Zmq_ctx -> IO ()
 terminateContext socketFinalizers context = do
   -- Shut down the context, causing any blocking operations on sockets to return ETERM
@@ -157,6 +187,7 @@ terminateContext socketFinalizers context = do
 
   -- Close all of the open sockets
   -- Why reverse: close in the order they were acquired :shrug:
+  compactSocketFinalizers socketFinalizers
   finalizers <- readIORef socketFinalizers
   for_ (reverse finalizers) runSocketFinalizer
   atomicWriteIORef socketFinalizers []

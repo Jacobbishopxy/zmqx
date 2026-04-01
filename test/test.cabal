@@ -173,6 +173,12 @@ test-suite test-recv-for
   main-is:       ReceivesFor.hs
   build-depends: bytestring
 
+test-suite test-req-poll
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       ReqPoll.hs
+  build-depends: bytestring
+
 ------------------------------------------------------------------------------------------------
 -- ContextualOpen coverage
 
@@ -180,3 +186,17 @@ test-suite test-contextual-open
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: ContextualOpen.hs
+
+test-suite test-monitor-event
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       MonitorEvent.hs
+  build-depends: bytestring
+
+------------------------------------------------------------------------------------------------
+-- Finalizer registry compaction
+
+test-suite test-finalizer-registry
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: FinalizerRegistry.hs

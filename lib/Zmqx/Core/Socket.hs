@@ -75,21 +75,22 @@ type role Socket nominal
 
 data Socket (a :: Symbol) = Socket
   { zsocket :: !Zmq_socket,
+    context :: !Context,
     lock :: !(MVar ()),
     name :: !Text,
     extra :: !(Extra a)
   }
 
 instance Eq (Socket a) where
-  Socket x _ _ _ == Socket y _ _ _ = x == y
-  Socket x _ _ _ /= Socket y _ _ _ = x /= y
+  Socket x _ _ _ _ == Socket y _ _ _ _ = x == y
+  Socket x _ _ _ _ /= Socket y _ _ _ _ = x /= y
 
 instance Ord (Socket a) where
-  compare (Socket x _ _ _) (Socket y _ _ _) = compare x y
-  Socket x _ _ _ < Socket y _ _ _ = x < y
-  Socket x _ _ _ <= Socket y _ _ _ = x <= y
-  Socket x _ _ _ > Socket y _ _ _ = x > y
-  Socket x _ _ _ >= Socket y _ _ _ = x >= y
+  compare (Socket x _ _ _ _) (Socket y _ _ _ _) = compare x y
+  Socket x _ _ _ _ < Socket y _ _ _ _ = x < y
+  Socket x _ _ _ _ <= Socket y _ _ _ _ = x <= y
+  Socket x _ _ _ _ > Socket y _ _ _ _ = x > y
+  Socket x _ _ _ _ >= Socket y _ _ _ _ = x >= y
 
 data Extra (a :: Symbol) where
   DealerExtra :: Extra "DEALER"
@@ -139,13 +140,14 @@ openSocketIn Context {contextPtr, contextFinalizers} socketType options extra = 
   zsocket <-
     mask_ do
       zsocket <- zhs_socket contextPtr socketType
-      finalizer <- makeSocketFinalizer (zmq_close zsocket) canary#
+      finalizer <- makeSocketFinalizer (zmq_close zsocket) contextFinalizers canary#
       atomicModifyIORef' contextFinalizers \finalizers -> (finalizer : finalizers, ())
       pure zsocket
   Options.setSocketOptions zsocket options
   pure
     Socket
       { zsocket,
+        context = Context {contextPtr, contextFinalizers},
         lock,
         name = Options.optionsName options,
         extra

@@ -18,18 +18,20 @@ module Zmqx.Req
 where
 
 import Control.Monad (when)
+import Control.Exception (catch, throwIO)
 import Data.ByteString (ByteString)
+import Data.Functor ((<&>))
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List.NonEmpty (pattern (:|))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
+import System.Timeout qualified as Timeout
 import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.Poll qualified as Poll
 import Zmqx.Core.Socket (CanReceive, CanReceives, CanReceivesFor, CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
-import Zmqx.Error (Error (..), catchingOkErrors, throwOkError)
+import Zmqx.Error (Error (..), catchingOkErrors)
 import Zmqx.Internal
 
 -- | A __requester__ socket.
@@ -183,14 +185,39 @@ receives socket@Socket {extra = Socket.ReqExtra messageBuffer} =
 -- returns `Right Nothing`. If a message is received, returns `Right (Just message)`.
 -- If an error occurs, returns `Left error`.
 receivesFor :: Req -> Int -> IO (Either Error (Maybe [ByteString]))
-receivesFor socket timeout =
+receivesFor socket@Socket {extra = Socket.ReqExtra messageBuffer, zsocket} timeoutMs =
   catchingOkErrors do
-    Poll.pollFor (Poll.pollIn socket) timeout >>= \case
-      Right Nothing -> pure Nothing
-      Right (Just (Poll.Ready isReady)) ->
-        if isReady socket
-          then do
-            frame :| frames <- Socket.receiveMany socket
-            pure (Just (frame : frames))
-          else pure Nothing
-      Left err -> throwOkError err
+    let drainBuffer =
+          readIORef messageBuffer >>= \case
+            Nothing -> pure Nothing
+            Just (frame :| frames) -> do
+              writeIORef messageBuffer Nothing
+              pure (Just (frame : frames))
+        receiveDontWait =
+          ( Socket.receiveManyDontWait socket <&> \case
+              Nothing -> Nothing
+              Just (frame :| frames) -> Just (frame : frames)
+          )
+            `catch` \case
+              Error {errno = EFSM} -> pure Nothing
+              err -> throwIO err
+        receiveLoop =
+          receiveDontWait >>= \case
+            Just frames -> pure frames
+            Nothing -> do
+              Socket.blockUntilCanReceive zsocket
+              receiveLoop
+    drainBuffer >>= \case
+      Just frames -> pure (Just frames)
+      Nothing
+        | timeoutMs < 0 ->
+            Just <$> receiveLoop
+        | timeoutMs == 0 ->
+            receiveDontWait
+        | otherwise ->
+            Timeout.timeout (timeoutMs * 1000) receiveLoop >>= \case
+              Just frames -> pure (Just frames)
+              Nothing ->
+                drainBuffer >>= \case
+                  Just frames -> pure (Just frames)
+                  Nothing -> receiveDontWait

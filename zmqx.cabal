@@ -76,9 +76,7 @@ library
     , bytestring
     , containers
     , primitive
-    , random
     , text
-    , text-short
 
   build-tool-depends: hsc2hs:hsc2hs
   default-extensions:

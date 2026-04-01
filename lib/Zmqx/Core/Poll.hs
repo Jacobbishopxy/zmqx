@@ -23,7 +23,7 @@ import Data.Array.MArray qualified as MArray
 import Data.Array.Storable (StorableArray)
 import Data.Foldable qualified as Foldable
 import Data.Functor ((<&>))
-import Data.IORef (readIORef)
+import Data.IORef (readIORef, writeIORef)
 import Data.Int (Int64)
 import Data.Primitive.Array qualified as Primitive (Array)
 import Data.Primitive.Array qualified as Primitive.Array
@@ -36,7 +36,7 @@ import Zmqx.Core.IO (keepAlive)
 import Zmqx.Core.Socket (Socket (..))
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Core.SomeSocket (SomeSocket (..))
-import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
+import Zmqx.Error (Error (..), catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
 
@@ -206,6 +206,27 @@ getOstensiblyReadySockets socketsToPoll socketsToPoll2 = do
               else loop (Set.insert (pollSocket (Primitive.Array.indexArray socketsToPoll i)) acc) (i + 1)
   loop Set.empty lo
 
+probeReadySockets :: Set SomeSocket -> IO (Set SomeSocket)
+probeReadySockets =
+  Set.foldl'
+    ( \ioAcc someSocket@(SomeSocket socket) -> do
+        acc <- ioAcc
+        case extra socket of
+          Socket.ReqExtra messageBuffer ->
+            mask_ $
+              ( Socket.receiveManyDontWait socket >>= \case
+                  Nothing -> pure acc
+                  Just frames -> do
+                    writeIORef messageBuffer (Just frames)
+                    pure (Set.insert someSocket acc)
+              )
+                `catch` \case
+                  Error {errno = EFSM} -> pure acc
+                  err -> throwIO err
+          _ -> pure (Set.insert someSocket acc)
+    )
+    (pure Set.empty)
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Polling
 
@@ -234,37 +255,42 @@ pollUntil sockets deadline = do
 poll_ :: Sockets -> Maybe Word64 -> IO (Either Error (Maybe Ready))
 poll_ sockets maybeDeadline =
   catchingOkErrors do
-    PreparedSockets {socketsToPoll, socketsToPoll2, pollingAnyREQs, fullREQs} <- prepareSockets sockets
-    if Foldable.null socketsToPoll
-      then do
-        -- If there are no sockets to poll, that means every socket was a full REQ socket, so just return them.
-        ready1 fullREQs
-      else keepAlive socketsToPoll do
-        -- If we have any ready REQ sockets, do a non-blocking poll. Otherwise, respect the user-requested timeout.
-        timeout <-
-          if Set.null fullREQs
-            then case maybeDeadline of
-              Nothing -> pure (-1)
-              Just deadline -> do
-                now <- getMonotonicTimeNSec
-                pure
-                  if now > deadline
-                    then 0
-                    else -- safe downcast: can't overflow Int64 after dividing by 1,000,000
-                      fromIntegral @Word64 @Int64 ((deadline - now) `div` 1_000_000)
-            else pure 0
-        numOstensiblyReadySockets <- zhs_poll socketsToPoll2 timeout
-        if numOstensiblyReadySockets == 0
-          then if Set.null fullREQs then pure Nothing else ready1 fullREQs
-          else do
-            ostensiblyReadySockets <- getOstensiblyReadySockets socketsToPoll socketsToPoll2
-            if not pollingAnyREQs
-              then ready1 (Set.union fullREQs ostensiblyReadySockets)
-              else do
-                -- FIXME probe the ostensibly ready REQs
-                -- also think about proper masking around the time we fill REQ socket buffers
-                ready1 (Set.union fullREQs ostensiblyReadySockets)
+    loop
   where
+    loop = do
+      PreparedSockets {socketsToPoll, socketsToPoll2, pollingAnyREQs, fullREQs} <- prepareSockets sockets
+      if Foldable.null socketsToPoll
+        then do
+          -- If there are no sockets to poll, that means every socket was a full REQ socket, so just return them.
+          ready1 fullREQs
+        else keepAlive socketsToPoll do
+          -- If we have any ready REQ sockets, do a non-blocking poll. Otherwise, respect the user-requested timeout.
+          timeout <-
+            if Set.null fullREQs
+              then case maybeDeadline of
+                Nothing -> pure (-1)
+                Just deadline -> do
+                  now <- getMonotonicTimeNSec
+                  pure
+                    if now > deadline
+                      then 0
+                      else -- safe downcast: can't overflow Int64 after dividing by 1,000,000
+                        fromIntegral @Word64 @Int64 ((deadline - now) `div` 1_000_000)
+              else pure 0
+          numOstensiblyReadySockets <- zhs_poll socketsToPoll2 timeout
+          if numOstensiblyReadySockets == 0
+            then if Set.null fullREQs then pure Nothing else ready1 fullREQs
+            else do
+              ostensiblyReadySockets <- getOstensiblyReadySockets socketsToPoll socketsToPoll2
+              if not pollingAnyREQs
+                then ready1 (Set.union fullREQs ostensiblyReadySockets)
+                else do
+                  actuallyReadySockets <- probeReadySockets ostensiblyReadySockets
+                  let readySockets = Set.union fullREQs actuallyReadySockets
+                  if Set.null readySockets
+                    then loop
+                    else ready1 readySockets
+
     ready1 :: Set SomeSocket -> IO (Maybe Ready)
     ready1 ss =
       pure (Just (Ready (makeReady ss)))

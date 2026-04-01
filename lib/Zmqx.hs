@@ -10,6 +10,7 @@ module Zmqx
     RunError (..),
     Context,
     ContextualOpen (..),
+    pendingSockets,
 
     -- ** Main options
     Options.ioThreads,
@@ -17,6 +18,8 @@ module Zmqx
 
     -- * Socket
     Socket.Socket,
+    Event (..),
+    decodeMonitorEvent,
     monitor,
 
     -- ** Options
@@ -106,7 +109,7 @@ where
 import Data.ByteString (ByteString)
 import Zmqx.Core.Context
 import Zmqx.Core.Curve
-import Zmqx.Core.Monitor (monitor)
+import Zmqx.Core.Monitor (Event (..), decodeMonitorEvent, monitor)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll (CanPoll, PollEvent (..), Ready (..), Sockets, poll, pollFor, pollIn, pollInAlso, pollOut, pollOutAlso, pollUntil)
 import Zmqx.Core.Socket qualified as Socket

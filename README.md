@@ -24,13 +24,14 @@ source-repository-package
 
 Use `Zmqx.run` for typical applications: it creates a single global ØMQ context, and all `*.open` functions use that
 context under the hood. `Zmqx.run` is guarded and must not be nested (it throws `RunAlreadyActive`).
+If you spawn child threads that use `zmqx` sockets inside `run`, you must stop and join them
+before `run` returns; the Plan A API does not track `forkIO` children for you.
 
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Control.Concurrent (forkIO)
 import Control.Exception (throwIO)
 import Data.ByteString.Char8 qualified as BS
 import Zmqx qualified
@@ -51,12 +52,10 @@ main =
     unwrap (Zmqx.bind rep endpoint)
     unwrap (Zmqx.connect req endpoint)
 
-    _ <- forkIO do
-      msg <- unwrap (Zmqx.receive rep)
-      putStrLn ("server got: " <> BS.unpack msg)
-      unwrap (Zmqx.send rep "pong")
-
     unwrap (Zmqx.send req "ping")
+    msg <- unwrap (Zmqx.receive rep)
+    putStrLn ("server got: " <> BS.unpack msg)
+    unwrap (Zmqx.send rep "pong")
     reply <- unwrap (Zmqx.receive req)
     putStrLn ("client got: " <> BS.unpack reply)
 ```
@@ -65,13 +64,14 @@ main =
 
 Use `Zmqx.withContext` when you want to avoid global state (e.g. embedding `zmqx` inside a larger app/library, or when you
 need multiple isolated contexts). In this mode, open sockets via `openWith` (from `ContextualOpen`) instead of `*.open`.
+As with `run`, any child threads that use the context or its sockets must be joined or cancelled by
+the caller before `withContext` exits.
 
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Control.Concurrent (forkIO)
 import Control.Exception (throwIO)
 import Data.ByteString.Char8 qualified as BS
 import Zmqx qualified
@@ -92,12 +92,10 @@ main =
     unwrap (Zmqx.bind rep endpoint)
     unwrap (Zmqx.connect req endpoint)
 
-    _ <- forkIO do
-      msg <- unwrap (Zmqx.receive rep)
-      putStrLn ("server got: " <> BS.unpack msg)
-      unwrap (Zmqx.send rep "pong")
-
     unwrap (Zmqx.send req "ping")
+    msg <- unwrap (Zmqx.receive rep)
+    putStrLn ("server got: " <> BS.unpack msg)
+    unwrap (Zmqx.send rep "pong")
     reply <- unwrap (Zmqx.receive req)
     putStrLn ("client got: " <> BS.unpack reply)
 ```
@@ -114,6 +112,11 @@ This is intentional. The default API is correctness-first and does not silently 
 cleanup. If shutdown blocks, treat that as a real lifetime bug to investigate. Use
 `Zmqx.pendingSockets` with an explicit `Context` to inspect whether sockets are still pending
 before teardown; treat that count as advisory diagnostics, not as an exact live-socket census.
+
+The same rule applies to caller-managed child threads: `zmqx` does not currently provide
+`forkZmqx` or `asyncZmqx` on the main API path. If a child thread still owns sockets when
+`run` or `withContext` exits, teardown can legitimately block until that thread releases them.
+Join or cancel such threads before returning from the enclosing context.
 
 This does not promise delivery-preserving shutdown for queued outbound messages. Contexts are
 created with `ZMQ_BLOCKY = 0`, so new sockets default to `ZMQ_LINGER = 0`.

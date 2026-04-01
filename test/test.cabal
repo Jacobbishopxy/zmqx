@@ -193,6 +193,11 @@ test-suite test-monitor-event
   main-is:       MonitorEvent.hs
   build-depends: bytestring
 
+test-suite test-run-guard
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: RunGuard.hs
+
 ------------------------------------------------------------------------------------------------
 -- Finalizer registry compaction
 

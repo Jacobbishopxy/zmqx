@@ -218,46 +218,45 @@ Current state:
 
 - [x] `RunAlreadyActive` guard exists.
 - [x] `ContextNotInitialized` error exists.
-- [ ] Guard behavior is locked in by tests.
+- [x] Guard behavior is locked in by tests.
 
 Files:
 
-- [ ] `lib/Zmqx/Core/Context.hs`
-- [ ] dedicated test file
+- [x] `test/RunGuard.hs`
+- [x] `test/test.cabal`
 
 Implementation checklist:
 
-- [ ] Add a test for nested `run`.
-- [ ] Add a test for concurrent `run`.
-- [ ] Assert `RunAlreadyActive` is thrown deterministically.
-- [ ] Add a test for using `open` outside `run`.
+- [x] Add a test for nested `run`.
+- [x] Add a test for concurrent `run`.
+- [x] Assert `RunAlreadyActive` is thrown deterministically.
+- [x] Add a test for using `open` outside `run`.
 
 Acceptance criteria:
 
-- [ ] guard behavior is verified by automated tests.
+- [x] guard behavior is verified by automated tests.
 
 ### 9. Decide whether child-thread tracking belongs in Plan A
 
 Current state:
 
-- [ ] Child-thread tracking policy is explicit.
+- [x] Child-thread tracking policy is explicit.
 
 Files:
 
-- [ ] helper module if adopted
-- [ ] `lib/Zmqx/Core/Context.hs`
-- [ ] README if documented only
+- [x] `lib/Zmqx/Core/Context.hs`
+- [x] `README.md`
+- [x] `docs/superpowers/specs/2026-04-01-thread-lifetime-policy-design.md`
 
 Implementation checklist:
 
-- [ ] Decide whether to add `forkZmqx` or `asyncZmqx`.
-- [ ] If yes, track child threads per run or context.
-- [ ] If yes, define join/cancel semantics before shutdown.
-- [ ] If no, document caller responsibility clearly.
+- [x] Decide whether to add `forkZmqx` or `asyncZmqx`.
+- [x] If no, document caller responsibility clearly.
+- [x] Defer tracked child-thread helpers until there is stronger evidence they are worth the API cost.
 
 Acceptance criteria:
 
-- [ ] thread lifetime semantics are explicit and tested or documented.
+- [x] thread lifetime semantics are explicit and documented.
 
 ## Phase 4: Continue Plan B Deliberately
 

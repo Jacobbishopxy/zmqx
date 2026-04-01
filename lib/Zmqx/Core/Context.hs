@@ -84,7 +84,9 @@ globalSocketFinalizersRef =
 -- not promise delivery-preserving shutdown for queued outbound messages: we set @ZMQ_BLOCKY = 0@
 -- when creating the context, so new sockets default to @ZMQ_LINGER = 0@. If an opt-in timeout or
 -- best-effort shutdown mode is added later, it should live on a separate API path rather than
--- weakening 'run''s current contract.
+-- weakening 'run''s current contract. Callers remain responsible for the lifetime of any child
+-- threads they spawn inside 'run': this API does not track @forkIO@ children or join/cancel them
+-- automatically before teardown.
 run :: Options () -> IO a -> IO a
 run options action =
   withRunGuard do
@@ -116,7 +118,8 @@ run options action =
 -- queued outbound messages will be drained before return, because contexts are created with
 -- @ZMQ_BLOCKY = 0@. Callers that need timeout or best-effort shutdown semantics should use a
 -- dedicated opt-in API if one is added later, rather than relying on 'withContext' to abandon
--- cleanup work.
+-- cleanup work. Callers are also responsible for joining or cancelling any child threads that use
+-- the context or its sockets before 'withContext' exits; no Plan A thread tracker exists today.
 withContext :: Options () -> (Context -> IO a) -> IO a
 withContext options action =
   bracket (initializeContext options) cleanupContext \(context, socketFinalizers) ->
@@ -173,7 +176,9 @@ newContext options = do
 -- until @zmq_ctx_term@ succeeds. Contexts are created with @ZMQ_BLOCKY = 0@, so this guarantees
 -- strict socket/context teardown rather than delivery-preserving shutdown for queued outbound
 -- messages. We do not currently expose timeout or best-effort termination on this path because
--- that would weaken the main API's lifetime guarantees.
+-- that would weaken the main API's lifetime guarantees. This also means callers must stop any
+-- child threads that still use sockets from this context before teardown, or termination may
+-- block waiting for those sockets to be released.
 terminateContext :: IORef [SocketFinalizer] -> Zmq_ctx -> IO ()
 terminateContext socketFinalizers context = do
   -- Shut down the context, causing any blocking operations on sockets to return ETERM

@@ -67,6 +67,12 @@ need multiple isolated contexts). In this mode, open sockets via `openWith` (fro
 As with `run`, any child threads that use the context or its sockets must be joined or cancelled by
 the caller before `withContext` exits.
 
+The explicit-context path is intended to be complete across the public helper surface: once you
+have a socket opened with `openWith`, the usual helper operations (`bind`, `connect`, `send`,
+`receive`, `pollFor`, `monitor`, and so on) stay on that socket's originating context rather than
+silently falling back to the global `run` context. The remaining deliberate global entrypoints are
+the `*.open` functions themselves.
+
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 

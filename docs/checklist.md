@@ -267,22 +267,24 @@ Current state:
 - [x] `Context` exists.
 - [x] `withContext` exists.
 - [x] socket roles implement `ContextualOpen`.
-- [ ] No public helper silently falls back to globals in explicit-context mode.
+- [x] No public helper silently falls back to globals in explicit-context mode.
 
 Files:
 
-- [ ] all public modules
-- [ ] `lib/Zmqx/Core/*`
+- [x] `README.md`
+- [x] `lib/Zmqx.hs`
+- [x] `lib/Zmqx/*.hs`
+- [x] `lib/Zmqx/Core/*`
 
 Implementation checklist:
 
-- [ ] Audit all exported helpers for hidden global usage.
-- [ ] Ensure every helper that allocates internal sockets or resources has an explicit-context-safe path.
-- [ ] Make the README explicit about any remaining exceptions until the audit is complete.
+- [x] Audit all exported helpers for hidden global usage.
+- [x] Ensure every helper that allocates internal sockets or resources has an explicit-context-safe path.
+- [x] Make the README explicit about the remaining deliberate global entrypoints (`*.open`).
 
 Acceptance criteria:
 
-- [ ] explicit-context mode is complete across the intended public surface.
+- [x] explicit-context mode is complete across the intended public surface.
 
 ### 11. Add `withSocket` or scoped socket helpers if they still earn their cost
 

@@ -1,6 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RoleAnnotations #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Zmqx.Monad
   ( ZmqxT (..),
@@ -37,10 +36,10 @@ import Control.Monad.Trans.Class (MonadTrans (lift))
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Word (Word64)
+import Zmqx (PollEvent (..), Ready (..), Sockets, pollIn, pollInAlso, pollOut, pollOutAlso)
 import Zmqx qualified
 import Zmqx.Core.Context (Context, ContextualOpen)
 import Zmqx.Core.Options (Options)
-import Zmqx.Core.Poll (PollEvent (..), Ready (..), Sockets, pollIn, pollInAlso, pollOut, pollOutAlso)
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Error (Error)
 
@@ -48,9 +47,6 @@ newtype ZmqxT m a = ZmqxT {unZmqxT :: ReaderT Context m a}
   deriving newtype (Functor, Applicative, Monad, MonadIO, MonadReader Context)
 
 type role ZmqxT representational nominal
-
-instance Eq Ready where
-  Ready _ == Ready _ = False
 
 instance MonadTrans ZmqxT where
   lift =

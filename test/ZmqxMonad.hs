@@ -7,6 +7,7 @@ import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.Reader qualified as Reader
+import Data.Maybe (isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Unique (hashUnique, newUnique)
@@ -47,7 +48,7 @@ pairRoundTrip server client endpoint = do
   unwrapM (ZmqxM.connect client endpoint)
 
   readyBefore <- unwrapM (ZmqxM.pollFor (Zmqx.pollIn server) 20)
-  liftIO (assert (readyBefore == Nothing) "PAIR polled ready before send")
+  liftIO (assert (isNothing readyBefore) "PAIR polled ready before send")
 
   unwrapM (ZmqxM.send client "ping")
 

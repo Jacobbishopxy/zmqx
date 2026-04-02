@@ -38,6 +38,7 @@ library
   exposed-modules:
     Zmqx
     Zmqx.Dealer
+    Zmqx.Monad
     Zmqx.Options
     Zmqx.Pair
     Zmqx.Pub
@@ -75,8 +76,10 @@ library
     , array
     , bytestring
     , containers
+    , mtl
     , primitive
     , text
+    , transformers
 
   build-tool-depends: hsc2hs:hsc2hs
   default-extensions:

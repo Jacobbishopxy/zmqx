@@ -3,7 +3,6 @@
 
 module Main where
 
-import Common (unwrap)
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (ReaderT (..))
@@ -12,6 +11,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Unique (hashUnique, newUnique)
 import Zmqx qualified
+import Zmqx.Dealer qualified
 import Zmqx.Monad qualified as ZmqxM
 import Zmqx.Pair qualified
 
@@ -41,17 +41,32 @@ runApp :: Text -> App a -> ZmqxM.ZmqxT IO a
 runApp label (App action) =
   Reader.runReaderT action label
 
-pairRoundTrip :: (MonadIO m) => Zmqx.Pair.Pair -> Zmqx.Pair.Pair -> Text -> m ()
+pairRoundTrip :: (ZmqxM.MonadZmqx m) => Zmqx.Pair.Pair -> Zmqx.Pair.Pair -> Text -> m ()
 pairRoundTrip server client endpoint = do
-  liftIO (unwrap (Zmqx.bind server endpoint))
-  liftIO (unwrap (Zmqx.connect client endpoint))
-  liftIO (unwrap (Zmqx.send client "ping"))
-  frame <- liftIO (unwrap (Zmqx.receive server))
+  unwrapM (ZmqxM.bind server endpoint)
+  unwrapM (ZmqxM.connect client endpoint)
+
+  readyBefore <- unwrapM (ZmqxM.pollFor (Zmqx.pollIn server) 20)
+  liftIO (assert (readyBefore == Nothing) "PAIR polled ready before send")
+
+  unwrapM (ZmqxM.send client "ping")
+
+  readyAfter <- unwrapM (ZmqxM.pollFor (Zmqx.pollIn server) 1000)
+  case readyAfter of
+    Nothing ->
+      liftIO (throwIO (userError "PAIR pollFor timed out after send"))
+    Just (Zmqx.Ready isReady) ->
+      liftIO (assert (isReady server) "PAIR server was not marked ready")
+
+  frame <- unwrapM (ZmqxM.receive server)
   liftIO (assert (frame == "ping") "PAIR round trip returned the wrong payload")
 
 main :: IO ()
 main = do
   ZmqxM.runZmqx Zmqx.defaultOptions do
+    dealer <- unwrapM (ZmqxM.open (Zmqx.Dealer.defaultOptions <> Zmqx.name "monad-monitor"))
+    _ <- unwrapM (ZmqxM.monitor dealer)
+
     server <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "run-zmqxt-server"))
     client <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "run-zmqxt-client"))
     endpoint <- liftIO (uniqueEndpoint "run-zmqxt")
@@ -59,6 +74,9 @@ main = do
 
   Zmqx.withContext Zmqx.defaultOptions \ctx ->
     ZmqxM.runZmqxT ctx do
+      dealer <- unwrapM (ZmqxM.open (Zmqx.Dealer.defaultOptions <> Zmqx.name "monad-monitor-explicit"))
+      _ <- unwrapM (ZmqxM.monitor dealer)
+
       server <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "run-zmqxtt-server"))
       client <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "run-zmqxtt-client"))
       endpoint <- liftIO (uniqueEndpoint "run-zmqxtt")

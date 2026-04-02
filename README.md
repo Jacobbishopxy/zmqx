@@ -109,6 +109,46 @@ main =
     putStrLn ("client got: " <> BS.unpack reply)
 ```
 
+### `Zmqx.Monad` (monadic explicit context)
+
+The `Zmqx` module remains the direct `IO` API. `Zmqx.Monad` is additive, not a replacement: it
+provides a `MonadZmqx` / `ZmqxT` layer for callers that want straight-line explicit-context code
+without manually threading `Context`, while the existing `run` and `withContext` entrypoints stay
+available. `runZmqx` reuses `withContext`, so it shares the same teardown semantics rather than
+introducing a second runtime path.
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+
+import Control.Exception (throwIO)
+import Control.Monad.IO.Class (liftIO)
+import Data.ByteString.Char8 qualified as BS
+import Zmqx qualified
+import Zmqx.Monad qualified as ZmqxM
+import Zmqx.Pair qualified
+
+unwrapM :: ZmqxM.ZmqxT IO (Either Zmqx.Error a) -> ZmqxM.ZmqxT IO a
+unwrapM action = do
+  result <- action
+  either (liftIO . throwIO) pure result
+
+main :: IO ()
+main =
+  ZmqxM.runZmqx Zmqx.defaultOptions $ do
+    server <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "server"))
+    client <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "client"))
+
+    let endpoint = "inproc://ping"
+    unwrapM (ZmqxM.bind server endpoint)
+    unwrapM (ZmqxM.connect client endpoint)
+
+    unwrapM (ZmqxM.send client "ping")
+    msg <- unwrapM (ZmqxM.receive server)
+    liftIO (putStrLn ("server got: " <> BS.unpack msg))
+```
+
 ### Shutdown Semantics
 
 `Zmqx.run` and `Zmqx.withContext` are strict about socket and context teardown. On exit they:

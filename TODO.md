@@ -10,8 +10,8 @@
 
 - Plan B: New API (Explicit Handle / Monad)
 
-  - Introduce Context handle and withContext :: Options () -> (Context -> IO a) -> IO a; move globals into Env carried in a ReaderT (ZmqxT).
-  - Provide withSocket/openSocket that use the explicit Context; sockets reference their context handle, not a global.
-  - Offer runZmqx :: Options () -> ZmqxT IO a -> IO a for straight-line syntax; keep a thin Zmqx.run wrapper that delegates to runZmqx for compatibility.
+  - Keep Context and withContext :: Options () -> (Context -> IO a) -> IO a as the core explicit-context API, and expose a separate Zmqx.Monad surface built around Context / MonadZmqx / ZmqxT.
+  - Provide monadic open helpers on the separate Zmqx.Monad API; sockets still reference their originating context handle rather than a global.
+  - Offer runZmqx :: Options () -> ZmqxT IO a -> IO a for straight-line syntax; keep the existing Zmqx.run global wrapper separate for compatibility rather than delegating it through the monadic path.
   - Add optional region typing (Context s, Socket s role) to prevent sockets escaping the context; or keep first-class but document lifetime.
   - Update public modules to accept Context/MonadZmqx where needed, and add transitional shims for existing callers.

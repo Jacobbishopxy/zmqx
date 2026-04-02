@@ -311,18 +311,30 @@ Files:
 
 Current state:
 
-- [ ] Decision made on `ZmqxT`.
+- [x] Decision made on `ZmqxT`.
+- [x] `Zmqx.Monad` exists as a separate import path.
+- [x] `runZmqx` reuses `withContext` rather than creating a second runtime path.
+- [x] There is a clear ergonomic benefit for straight-line explicit-context code, not just architectural symmetry.
+
+Files:
+
+- [x] `lib/Zmqx/Monad.hs`
+- [x] `zmqx.cabal`
+- [x] `test/ZmqxMonad.hs`
+- [x] `test/test.cabal`
+- [x] `README.md`
+- [x] `TODO.md`
 
 Implementation checklist:
 
-- [ ] Do not start this before Phases 1 through 3 are stable.
-- [ ] Decide whether `ReaderT Context IO` materially improves ergonomics.
-- [ ] Define the migration story for current callers.
-- [ ] Keep `run` thin if compatibility is retained.
+- [x] Do not start this before Phases 1 through 3 are stable.
+- [x] Decide whether `ReaderT Context IO` materially improves ergonomics.
+- [x] Define the migration story for current callers.
+- [x] Keep the existing `run` compatibility path separate from `runZmqx`.
 
 Acceptance criteria:
 
-- [ ] there is a clear ergonomic benefit, not just architectural symmetry.
+- [x] there is a clear ergonomic benefit, not just architectural symmetry.
 
 ### 13. Decide on region typing separately from the monad decision
 

@@ -205,3 +205,8 @@ test-suite test-finalizer-registry
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: FinalizerRegistry.hs
+
+test-suite test-zmqxt
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: ZmqxMonad.hs

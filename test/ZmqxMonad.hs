@@ -8,7 +8,6 @@ import Control.Exception (throwIO)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.Reader qualified as Reader
-import Control.Monad.Trans.Class (lift)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Unique (hashUnique, newUnique)
@@ -36,7 +35,7 @@ newtype App a = App {unApp :: ReaderT Text (ZmqxM.ZmqxT IO) a}
   deriving newtype (Functor, Applicative, Monad, MonadIO)
 
 instance ZmqxM.MonadZmqx App where
-  askContext = App (lift ZmqxM.askContext)
+  askContext = App (ReaderT (\_ -> ZmqxM.askContext))
 
 runApp :: Text -> App a -> ZmqxM.ZmqxT IO a
 runApp label (App action) =

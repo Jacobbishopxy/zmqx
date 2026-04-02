@@ -400,7 +400,7 @@ Checklist:
 - [ ] 7. add `run` guard tests
 - [ ] 8. decide child-thread tracking
 - [ ] 9. complete the explicit-context API audit
-- [ ] 10. evaluate optional ergonomic additions such as `withSocket`, `ZmqxT`, and region typing
+- [ ] 10. evaluate optional ergonomic additions such as `withSocket` and region typing
 
 ## Definition Of Done For This Round
 

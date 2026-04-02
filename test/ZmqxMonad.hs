@@ -42,7 +42,7 @@ runApp :: Text -> App a -> ZmqxM.ZmqxT IO a
 runApp label (App action) =
   Reader.runReaderT action label
 
-pairRoundTrip :: (ZmqxM.MonadZmqx m) => Zmqx.Pair.Pair -> Zmqx.Pair.Pair -> Text -> m ()
+pairRoundTrip :: (MonadIO m) => Zmqx.Pair.Pair -> Zmqx.Pair.Pair -> Text -> m ()
 pairRoundTrip server client endpoint = do
   unwrapM (ZmqxM.bind server endpoint)
   unwrapM (ZmqxM.connect client endpoint)
@@ -73,15 +73,17 @@ main = do
     endpoint <- liftIO (uniqueEndpoint "run-zmqxt")
     pairRoundTrip server client endpoint
 
-  Zmqx.withContext Zmqx.defaultOptions \ctx ->
-    ZmqxM.runZmqxT ctx do
+  Zmqx.withContext Zmqx.defaultOptions \ctx -> do
+    (server, client, endpoint) <- ZmqxM.runZmqxT ctx do
       dealer <- unwrapM (ZmqxM.open (Zmqx.Dealer.defaultOptions <> Zmqx.name "monad-monitor-explicit"))
       _ <- unwrapM (ZmqxM.monitor dealer)
 
       server <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "run-zmqxtt-server"))
       client <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "run-zmqxtt-client"))
       endpoint <- liftIO (uniqueEndpoint "run-zmqxtt")
-      pairRoundTrip server client endpoint
+      pure (server, client, endpoint)
+
+    pairRoundTrip server client endpoint
 
   ZmqxM.runZmqx Zmqx.defaultOptions (runApp "stack" do
     server <- unwrapM (ZmqxM.open (Zmqx.Pair.defaultOptions <> Zmqx.name "app-server"))

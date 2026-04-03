@@ -179,10 +179,10 @@ receives socket@Socket {extra = Socket.ReqExtra messageBuffer} =
       writeIORef messageBuffer Nothing
       pure (Right (frame : frames))
 
--- | Receive a __multiframe message__ on a __dealer__ from any peer (fair-queued) with a timeout.
+-- | Receive a __multiframe reply__ on a __requester__ from the last peer sent to, with a timeout.
 --
--- The timeout is specified in milliseconds. If no message is available within the timeout,
--- returns `Right Nothing`. If a message is received, returns `Right (Just message)`.
+-- The timeout is specified in milliseconds. If no valid reply is available within the timeout,
+-- returns `Right Nothing`. If a reply is received, returns `Right (Just reply)`.
 -- If an error occurs, returns `Left error`.
 receivesFor :: Req -> Int -> IO (Either Error (Maybe [ByteString]))
 receivesFor socket@Socket {extra = Socket.ReqExtra messageBuffer, zsocket} timeoutMs =

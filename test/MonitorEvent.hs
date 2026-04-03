@@ -8,7 +8,8 @@ import Data.ByteString qualified as ByteString
 import Data.Int (Int32)
 import Foreign.C.Types (CUShort (..))
 import Foreign.Marshal.Alloc (allocaBytes)
-import Foreign.Storable (pokeByteOff)
+import Foreign.Ptr (castPtr)
+import Foreign.Storable (poke)
 import Zmqx
 
 assert :: Bool -> String -> IO ()
@@ -19,10 +20,13 @@ assert condition message =
 
 monitorFrame :: CUShort -> Int32 -> IO ByteString
 monitorFrame typ value =
-  allocaBytes 6 \ptr -> do
-    pokeByteOff ptr 0 typ
-    pokeByteOff ptr 2 value
-    ByteString.packCStringLen (ptr, 6)
+  allocaBytes 2 \typePtr -> do
+    poke typePtr typ
+    typeBytes <- ByteString.packCStringLen (castPtr typePtr, 2)
+    allocaBytes 4 \valuePtr -> do
+      poke valuePtr value
+      valueBytes <- ByteString.packCStringLen (castPtr valuePtr, 4)
+      pure (typeBytes <> valueBytes)
 
 main :: IO ()
 main = do

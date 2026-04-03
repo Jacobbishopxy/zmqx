@@ -94,8 +94,8 @@ unwrap =
 main :: IO ()
 main =
   Zmqx.withContext Zmqx.defaultOptions \ctx -> do
-    rep <- unwrap (Zmqx.openWith ctx (Zmqx.Rep.defaultOptions <> name "server"))
-    req <- unwrap (Zmqx.openWith ctx (Zmqx.Req.defaultOptions <> name "client"))
+    rep <- unwrap (Zmqx.openWith ctx (Zmqx.Rep.defaultOptions <> Zmqx.name "server"))
+    req <- unwrap (Zmqx.openWith ctx (Zmqx.Req.defaultOptions <> Zmqx.name "client"))
 
     let endpoint = "inproc://ping"
     unwrap (Zmqx.bind rep endpoint)

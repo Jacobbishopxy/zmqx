@@ -18,6 +18,7 @@ module Zmqx.Core.Poll
 where
 
 import Control.Exception
+import Control.Concurrent (threadDelay)
 import Data.Array.Base qualified as Array
 import Data.Array.MArray qualified as MArray
 import Data.Array.Storable (StorableArray)
@@ -141,21 +142,25 @@ pollEventIsInput = \case
 
 data PreparedSockets = PreparedSockets
   { -- The subset of the input sockets that actually need to be polled. Input REQ sockets with a buffered message are
-    -- excluded; all other sockets (including output-polling REQs) are kept.
+    -- excluded; input-polling REQs without a buffered message are also excluded and handled by explicit probes instead.
+    -- All other sockets (including output-polling REQs) are kept.
     --
     -- TODO SmallArray
     socketsToPoll :: Primitive.Array SocketToPoll,
-    -- The same sockets as `socketsToPoll`, to pass to libzmq
+    -- The same sockets as `socketsToPoll`, to pass to libzmq.
     socketsToPoll2 :: StorableArray Int Zmq_pollitem,
     -- Are we polling any REQ sockets for input?
     pollingAnyREQs :: Bool,
+    -- Input REQ sockets without a buffered reply. These are probed directly because libzmq can report stale readiness
+    -- for correlated replies without reliably producing a second wakeup for the later valid reply.
+    inputREQs :: Set SomeSocket,
     -- The subset of input sockets that don't need to be polled, because they are REQs with a full message buffer.
     fullREQs :: Set SomeSocket
   }
 
 prepareSockets :: Sockets -> IO PreparedSockets
 prepareSockets (Sockets sockets0 _len) = do
-  (fullREQs, sockets1, pollingAnyREQs) <- partitionSockets Set.empty [] False sockets0
+  (fullREQs, inputREQs, sockets1, pollingAnyREQs) <- partitionSockets Set.empty Set.empty [] False sockets0
   let filteredLen = length sockets1
   socketsToPoll2 <- MArray.newListArray (0, filteredLen - 1) (map someSocketToPollitem sockets1)
   pure
@@ -163,24 +168,26 @@ prepareSockets (Sockets sockets0 _len) = do
       { socketsToPoll = Primitive.Array.arrayFromListN filteredLen sockets1,
         socketsToPoll2,
         pollingAnyREQs,
+        inputREQs,
         fullREQs
       }
   where
     partitionSockets ::
       Set SomeSocket ->
+      Set SomeSocket ->
       [SocketToPoll] ->
       Bool ->
       [SocketToPoll] ->
-      IO (Set SomeSocket, [SocketToPoll], Bool)
-    partitionSockets readyREQs notReadyREQs anyREQs = \case
-      [] -> pure (readyREQs, notReadyREQs, anyREQs)
+      IO (Set SomeSocket, Set SomeSocket, [SocketToPoll], Bool)
+    partitionSockets readyREQs emptyREQs notReadyREQs anyREQs = \case
+      [] -> pure (readyREQs, emptyREQs, notReadyREQs, anyREQs)
       socketToPoll'@SocketToPoll {pollSocket = someSocket@(SomeSocket socket), pollEvent} : someSockets ->
         case (pollEventIsInput pollEvent, extra socket) of
           (True, Socket.ReqExtra messageBuffer) ->
             readIORef messageBuffer >>= \case
-              Nothing -> partitionSockets readyREQs (socketToPoll' : notReadyREQs) True someSockets
-              Just _ -> partitionSockets (Set.insert someSocket readyREQs) notReadyREQs True someSockets
-          _ -> partitionSockets readyREQs (socketToPoll' : notReadyREQs) anyREQs someSockets
+              Nothing -> partitionSockets readyREQs (Set.insert someSocket emptyREQs) notReadyREQs True someSockets
+              Just _ -> partitionSockets (Set.insert someSocket readyREQs) emptyREQs notReadyREQs True someSockets
+          _ -> partitionSockets readyREQs emptyREQs (socketToPoll' : notReadyREQs) anyREQs someSockets
 
 someSocketToPollitem :: SocketToPoll -> Zmq_pollitem
 someSocketToPollitem SocketToPoll {pollSocket = SomeSocket Socket {zsocket}, pollEvent} =
@@ -257,36 +264,87 @@ poll_ sockets maybeDeadline =
   catchingOkErrors do
     loop
   where
+    reqProbeSliceUs :: Int
+    reqProbeSliceUs = 10_000
+
+    reqProbeSliceMs :: Int64
+    reqProbeSliceMs = fromIntegral (reqProbeSliceUs `div` 1000)
+
+    waitBeforeRetry :: Maybe Word64 -> IO Bool
+    waitBeforeRetry =
+      \case
+        Nothing -> do
+          threadDelay reqProbeSliceUs
+          pure True
+        Just deadline -> do
+          now <- getMonotonicTimeNSec
+          if now > deadline
+            then pure False
+            else do
+              let remainingUs =
+                    fromIntegral @Word64 @Int ((deadline - now) `div` 1000)
+              threadDelay (min reqProbeSliceUs remainingUs)
+              pure True
+
     loop = do
-      PreparedSockets {socketsToPoll, socketsToPoll2, pollingAnyREQs, fullREQs} <- prepareSockets sockets
+      PreparedSockets {socketsToPoll, socketsToPoll2, pollingAnyREQs, inputREQs, fullREQs} <- prepareSockets sockets
       if Foldable.null socketsToPoll
         then do
-          -- If there are no sockets to poll, that means every socket was a full REQ socket, so just return them.
-          ready1 fullREQs
+          reqReady <- probeReadySockets inputREQs
+          let readySockets = Set.union fullREQs reqReady
+          if Set.null readySockets
+            then
+              waitBeforeRetry maybeDeadline >>= \case
+                False -> pure Nothing
+                True -> loop
+            else ready1 readySockets
         else keepAlive socketsToPoll do
-          -- If we have any ready REQ sockets, do a non-blocking poll. Otherwise, respect the user-requested timeout.
+          -- If we have any ready REQ sockets, do a non-blocking poll. Otherwise, respect the user-requested timeout,
+          -- but cap it when probing input REQs so we periodically validate those sockets directly.
           timeout <-
             if Set.null fullREQs
               then case maybeDeadline of
-                Nothing -> pure (-1)
+                Nothing ->
+                  pure
+                    if pollingAnyREQs
+                      then reqProbeSliceMs
+                      else -1
                 Just deadline -> do
                   now <- getMonotonicTimeNSec
                   pure
                     if now > deadline
                       then 0
                       else -- safe downcast: can't overflow Int64 after dividing by 1,000,000
-                        fromIntegral @Word64 @Int64 ((deadline - now) `div` 1_000_000)
+                        let remainingMs = fromIntegral @Word64 @Int64 ((deadline - now) `div` 1_000_000)
+                         in if pollingAnyREQs
+                              then min remainingMs reqProbeSliceMs
+                              else remainingMs
               else pure 0
           numOstensiblyReadySockets <- zhs_poll socketsToPoll2 timeout
+          reqReady <- probeReadySockets inputREQs
           if numOstensiblyReadySockets == 0
-            then if Set.null fullREQs then pure Nothing else ready1 fullREQs
+            then
+              let readySockets = Set.union fullREQs reqReady
+               in if not (Set.null readySockets)
+                    then ready1 readySockets
+                    else case maybeDeadline of
+                      Nothing -> loop
+                      Just deadline -> do
+                        now <- getMonotonicTimeNSec
+                        if now > deadline
+                          then pure Nothing
+                          else loop
             else do
               ostensiblyReadySockets <- getOstensiblyReadySockets socketsToPoll socketsToPoll2
               if not pollingAnyREQs
                 then ready1 (Set.union fullREQs ostensiblyReadySockets)
                 else do
-                  actuallyReadySockets <- probeReadySockets ostensiblyReadySockets
-                  let readySockets = Set.union fullREQs actuallyReadySockets
+                  let readySockets =
+                        Set.unions
+                          [ fullREQs,
+                            reqReady,
+                            ostensiblyReadySockets
+                          ]
                   if Set.null readySockets
                     then loop
                     else ready1 readySockets

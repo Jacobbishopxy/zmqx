@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -11,16 +12,14 @@ where
 import Control.Exception (throwIO)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as ByteString
+import Data.Bits ((.|.), shiftL)
 import Data.Int (Int32)
 import Data.Functor ((<&>))
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Unique (hashUnique, newUnique)
+import Data.Word (Word16, Word32, Word8)
 import Foreign.C.Error (Errno (..))
-import Foreign.C.Types (CUShort (..))
-import Foreign.Marshal.Alloc (allocaBytes)
-import Foreign.Marshal.Utils (copyBytes)
-import Foreign.Storable (peekByteOff)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Error (Error (..), catchingOkErrors, enrichError, throwOkError, unexpectedError)
@@ -124,12 +123,17 @@ decodeMonitorEvent = \case
     parseEventFrame bytes
       | ByteString.length bytes /= 6 = pure Nothing
       | otherwise =
-          ByteString.useAsCString bytes \ptr -> do
-            allocaBytes 6 \alignedPtr -> do
-              copyBytes alignedPtr ptr 6
-              typ <- peekByteOff alignedPtr 0 :: IO CUShort
-              value <- peekByteOff alignedPtr 2 :: IO Int32
-              pure (Just (Zmq_socket_events (fromIntegral typ), value))
+          let typ =
+                decodeWord16Host
+                  (ByteString.index bytes 0)
+                  (ByteString.index bytes 1)
+              value =
+                decodeInt32Host
+                  (ByteString.index bytes 2)
+                  (ByteString.index bytes 3)
+                  (ByteString.index bytes 4)
+                  (ByteString.index bytes 5)
+           in pure (Just (Zmq_socket_events (fromIntegral typ), value))
 
     parseErrnoEventValue :: Int32 -> Errno
     parseErrnoEventValue =
@@ -146,6 +150,41 @@ decodeMonitorEvent = \case
     parseProtocolErrorValue :: Int32 -> Zmq_protocol_error
     parseProtocolErrorValue =
       Zmq_protocol_error . fromIntegral
+
+    -- libzmq monitor events are a native-endian 16-bit tag plus a native-endian
+    -- 32-bit value. Decode them bytewise so the parser does not rely on
+    -- unaligned reads at offset 2 on strict-alignment platforms.
+    decodeWord16Host :: Word8 -> Word8 -> Word16
+#if defined(WORDS_BIGENDIAN)
+    decodeWord16Host b0 b1 =
+      (fromIntegral b0 `shiftL` 8)
+        .|. fromIntegral b1
+#else
+    decodeWord16Host b0 b1 =
+      fromIntegral b0
+        .|. (fromIntegral b1 `shiftL` 8)
+#endif
+
+    decodeInt32Host :: Word8 -> Word8 -> Word8 -> Word8 -> Int32
+#if defined(WORDS_BIGENDIAN)
+    decodeInt32Host b0 b1 b2 b3 =
+      fromIntegral
+        ( (fromIntegral b0 `shiftL` 24)
+            .|. (fromIntegral b1 `shiftL` 16)
+            .|. (fromIntegral b2 `shiftL` 8)
+            .|. fromIntegral b3 ::
+              Word32
+        )
+#else
+    decodeInt32Host b0 b1 b2 b3 =
+      fromIntegral
+        ( fromIntegral b0
+            .|. (fromIntegral b1 `shiftL` 8)
+            .|. (fromIntegral b2 `shiftL` 16)
+            .|. (fromIntegral b3 `shiftL` 24) ::
+              Word32
+        )
+#endif
 
 zhs_socket_monitor :: Zmq_socket -> Text -> Zmq_socket_events -> IO ()
 zhs_socket_monitor socket endpoint events =

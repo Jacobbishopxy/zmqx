@@ -103,3 +103,54 @@ main =
     takeMVar repThreadDone >>= \case
       Nothing -> pure ()
       Just message -> throwIO (userError message)
+
+    let directPollEndpoint = "inproc://req-poll-direct-probe"
+
+    rep3 <- unwrap (Zmqx.Rep.open (Zmqx.name "rep-direct-poll"))
+    req3 <- unwrap (Zmqx.Req.open (Zmqx.name "req-direct-poll"))
+
+    unwrap (Zmqx.bind rep3 directPollEndpoint)
+    unwrap (Zmqx.connect req3 directPollEndpoint)
+
+    unwrap (Zmqx.send req3 "request-x")
+    firstPollRequest <- unwrap (Zmqx.receive rep3)
+    assert (firstPollRequest == BS.pack "request-x") "REP did not receive the first direct-poll request"
+
+    unwrap (Zmqx.send req3 "request-y")
+    unwrap (Zmqx.send rep3 "reply-x")
+
+    directPollDone <- newEmptyMVar
+    _ <- forkIO do
+      secondPollRequest <- unwrap (Zmqx.receive rep3)
+      if secondPollRequest == BS.pack "request-y"
+        then do
+          threadDelay 100000
+          unwrap (Zmqx.send rep3 "reply-y")
+          putMVar directPollDone Nothing
+        else
+          putMVar directPollDone (Just ("REP received the wrong second direct-poll request: " <> show secondPollRequest))
+
+    directPollResult <- Zmqx.pollFor (Zmqx.pollIn req3) 1000
+    case directPollResult of
+      Right (Just (Zmqx.Ready isReady)) -> do
+        assert (isReady req3) "REQ pollFor returned a Ready set that did not actually include the REQ socket"
+        directReply <- unwrap (Zmqx.receives req3)
+        case directReply of
+          [reply] ->
+            assert (reply == BS.pack "reply-y") "REQ pollFor surfaced the wrong buffered reply"
+          reply ->
+            throwIO (userError ("REQ pollFor surfaced an unexpected multipart reply: " <> show reply))
+      Right Nothing ->
+        throwIO (userError "REQ pollFor timed out even though the valid delayed reply arrived before the deadline")
+      Left err -> throwIO err
+
+    duplicateDirectReply <- Zmqx.receivesFor req3 0
+    case duplicateDirectReply of
+      Right Nothing -> pure ()
+      Right (Just reply) ->
+        throwIO (userError ("REQ pollFor surfaced the same buffered reply more than once: " <> show reply))
+      Left err -> throwIO err
+
+    takeMVar directPollDone >>= \case
+      Nothing -> pure ()
+      Just message -> throwIO (userError message)

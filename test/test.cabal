@@ -10,6 +10,11 @@ flag debug
   default:     False
   manual:      True
 
+flag demo-tests
+  description: Enable manual demo-style test executables
+  default:     False
+  manual:      True
+
 common test-properties
   default-language:   GHC2024
   other-modules:      Common
@@ -47,10 +52,16 @@ test-suite test-simple-req
   main-is:       SimpleReq.hs
   build-depends: bytestring
 
+  if !flag(demo-tests)
+    buildable: False
+
 test-suite test-simple-rep
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: SimpleRep.hs
+
+  if !flag(demo-tests)
+    buildable: False
 
 ------------------------------------------------------------------------------------------------
 -- Dealer -> Router
@@ -61,10 +72,16 @@ test-suite test-simple-dealer
   main-is:       SimpleDealer.hs
   build-depends: bytestring
 
+  if !flag(demo-tests)
+    buildable: False
+
 test-suite test-simple-router
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: SimpleRouter.hs
+
+  if !flag(demo-tests)
+    buildable: False
 
 ------------------------------------------------------------------------------------------------
 -- Pub -> Sub
@@ -77,6 +94,9 @@ test-suite test-simple-pub
     , bytestring
     , random
 
+  if !flag(demo-tests)
+    buildable: False
+
 test-suite test-simple-sub
   import:        test-properties
   type:          exitcode-stdio-1.0
@@ -84,6 +104,9 @@ test-suite test-simple-sub
   build-depends:
     , bytestring
     , random
+
+  if !flag(demo-tests)
+    buildable: False
 
 ------------------------------------------------------------------------------------------------
 -- ventilator -> worker[] -> sink
@@ -96,6 +119,9 @@ test-suite test-task-ventilator
     , bytestring
     , random
 
+  if !flag(demo-tests)
+    buildable: False
+
 test-suite test-task-worker
   import:        test-properties
   type:          exitcode-stdio-1.0
@@ -103,6 +129,9 @@ test-suite test-task-worker
   build-depends:
     , bytestring
     , random
+
+  if !flag(demo-tests)
+    buildable: False
 
 test-suite test-task-sink
   import:        test-properties
@@ -112,6 +141,9 @@ test-suite test-task-sink
     , bytestring
     , random
 
+  if !flag(demo-tests)
+    buildable: False
+
 ------------------------------------------------------------------------------------------------
 -- items + poll
 
@@ -119,6 +151,14 @@ test-suite test-items-poll
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: ItemsPoll.hs
+
+  if !flag(demo-tests)
+    buildable: False
+
+test-suite test-items-poll-auto
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: ItemsPollAuto.hs
 
 test-suite test-poll-out
   import:        test-properties
@@ -134,6 +174,9 @@ test-suite test-simple-broker
   type:    exitcode-stdio-1.0
   main-is: SimpleBroker.hs
 
+  if !flag(demo-tests)
+    buildable: False
+
 ------------------------------------------------------------------------------------------------
 -- XPub + XSub, proxy
 
@@ -141,6 +184,9 @@ test-suite test-simple-proxy
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: SimpleProxy.hs
+
+  if !flag(demo-tests)
+    buildable: False
 
 ------------------------------------------------------------------------------------------------
 -- Router -> Dealer (inproc) -> Rep[] (inproc)
@@ -153,6 +199,9 @@ test-suite test-mut-worker
     , bytestring
     , ki
 
+  if !flag(demo-tests)
+    buildable: False
+
 ------------------------------------------------------------------------------------------------
 -- Router (ipc) -> Router (ipc)
 
@@ -163,6 +212,21 @@ test-suite test-lb-worker
   build-depends:
     , bytestring
     , ki
+
+  if !flag(demo-tests)
+    buildable: False
+
+test-suite test-mut-worker-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       MutWorkerAuto.hs
+  build-depends: bytestring
+
+test-suite test-lb-worker-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       LBWorkerAuto.hs
+  build-depends: bytestring
 
 ------------------------------------------------------------------------------------------------
 -- receivesFor timeout
@@ -197,6 +261,45 @@ test-suite test-run-guard
   import:  test-properties
   type:    exitcode-stdio-1.0
   main-is: RunGuard.hs
+
+------------------------------------------------------------------------------------------------
+-- Automated replacements for manual demos
+
+test-suite test-req-rep-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       ReqRepAuto.hs
+  build-depends: bytestring
+
+test-suite test-dealer-router-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       DealerRouterAuto.hs
+  build-depends: bytestring
+
+test-suite test-pub-sub-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       PubSubAuto.hs
+  build-depends: bytestring
+
+test-suite test-broker-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       BrokerAuto.hs
+  build-depends: bytestring
+
+test-suite test-proxy-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       ProxyAuto.hs
+  build-depends: bytestring
+
+test-suite test-task-pipeline-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TaskPipelineAuto.hs
+  build-depends: bytestring
 
 ------------------------------------------------------------------------------------------------
 -- Finalizer registry compaction

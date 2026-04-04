@@ -399,7 +399,7 @@ Checklist:
 ## Definition Of Done For This Round
 
 - [ ] no known correctness bug remains in the current public API
-- [ ] no reachable runtime `undefined` remains
+- [x] no reachable runtime `undefined` remains
 - [x] automated tests cover both global and explicit-context modes
 - [x] `cabal test all` works without manual arguments
 - [x] `README.md` matches the actual supported behavior

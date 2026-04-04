@@ -46,7 +46,7 @@ import Data.Functor ((<&>))
 import Data.IORef
 import Data.Kind (Type)
 import Data.List qualified as List
-import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List.NonEmpty qualified as List (NonEmpty)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -108,24 +108,24 @@ data Extra (a :: Symbol) where
 
 class CanSend a where
   send_ :: a -> ByteString -> IO (Either Error ())
-  send_ = undefined -- hide "minimal complete definition" haddock
+  {-# MINIMAL send_ #-}
 
 class CanSends a where
   sends_ :: a -> [ByteString] -> IO (Either Error ())
-  sends_ = undefined -- hide "minimal complete definition" haddock
+  {-# MINIMAL sends_ #-}
 
 class CanReceive a where
   receive_ :: a -> IO (Either Error ByteString)
-  receive_ = undefined -- hide "minimal complete definition" haddock
+  {-# MINIMAL receive_ #-}
 
 class CanReceives a where
   receives_ :: a -> IO (Either Error [ByteString])
-  receives_ = undefined -- hide "minimal complete definition" haddock
+  {-# MINIMAL receives_ #-}
 
 -- | milliseconds
 class CanReceivesFor a where
   receivesFor_ :: a -> Int -> IO (Either Error (Maybe [ByteString]))
-  receivesFor_ = undefined -- hide "minimal complete definition" haddock
+  {-# MINIMAL receivesFor_ #-}
 
 -- Throws ok errors
 openSocket :: Zmq_socket_type -> Options.Options (Socket a) -> Extra a -> IO (Socket a)
@@ -270,11 +270,11 @@ zsendManyWontBlock1 socket = \case
 zsendManyWontBlock0 :: Zmq_socket -> [ByteString] -> IO ()
 zsendManyWontBlock0 socket =
   let loop = \case
+        [] -> pure ()
         frame : [] -> zhs_send_frame_wontblock socket frame False
         frame : frames -> do
           zhs_send_frame_wontblock socket frame True
           loop frames
-        [] -> undefined -- impossible
    in loop
 
 -- Receive one frame

@@ -68,8 +68,8 @@ module Zmqx
     XSub,
 
     -- * Subscription message
-    pattern Subscribe,
-    pattern Unsubscribe,
+    data Subscribe,
+    data Unsubscribe,
 
     -- * Encryption
     CurvePublicKey (..),
@@ -125,7 +125,7 @@ import Zmqx.Rep (Rep)
 import Zmqx.Req (Req)
 import Zmqx.Router (Router)
 import Zmqx.Sub (Sub)
-import Zmqx.Subscription (pattern Subscribe, pattern Unsubscribe)
+import Zmqx.Subscription (data Subscribe, data Unsubscribe)
 import Zmqx.XPub (XPub)
 import Zmqx.XSub (XSub)
 

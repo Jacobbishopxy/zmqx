@@ -19,7 +19,7 @@ module Zmqx.XSub
 where
 
 import Data.ByteString (ByteString)
-import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
@@ -29,7 +29,7 @@ import Zmqx.Core.Socket (CanReceive, CanReceives, CanReceivesFor, CanSend, Socke
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Error (Error, catchingOkErrors, throwOkError)
 import Zmqx.Internal
-import Zmqx.Subscription (pattern Subscribe, pattern Unsubscribe)
+import Zmqx.Subscription (data Subscribe, data Unsubscribe)
 
 -- | A thread-safe __xsubscriber__ socket.
 --

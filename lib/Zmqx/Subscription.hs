@@ -1,6 +1,6 @@
 module Zmqx.Subscription
-  ( pattern Subscribe,
-    pattern Unsubscribe,
+  ( data Subscribe,
+    data Unsubscribe,
   )
 where
 

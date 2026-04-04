@@ -22,7 +22,7 @@ import Control.Exception (catch, throwIO)
 import Data.ByteString (ByteString)
 import Data.Functor ((<&>))
 import Data.IORef (newIORef, readIORef, writeIORef)
-import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
 import System.Timeout qualified as Timeout

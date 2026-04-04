@@ -18,7 +18,7 @@ module Zmqx.Rep
 where
 
 import Data.ByteString (ByteString)
-import Data.List.NonEmpty (pattern (:|))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Numeric.Natural (Natural)
 import Zmqx.Core.Context (Context, ContextualOpen (..))

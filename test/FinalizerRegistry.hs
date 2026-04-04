@@ -13,6 +13,7 @@ import Data.Text qualified as Text
 import Data.Unique (hashUnique, newUnique)
 import GHC.Exts (keepAlive#)
 import GHC.IO (IO (IO))
+import Numeric.Natural (Natural)
 import Text.Printf (printf)
 import System.Mem (performMajorGC)
 import Zmqx
@@ -42,6 +43,12 @@ uniqueEndpoint :: String -> IO Text
 uniqueEndpoint label = do
   unique <- newUnique
   pure ("inproc://finalizer-registry-" <> Text.pack label <> "-" <> Text.pack (show (hashUnique unique)))
+
+portableLiveSocketCount :: Int
+portableLiveSocketCount = 64
+
+portableContextMaxSockets :: Natural
+portableContextMaxSockets = 256
 
 testDeadSocketsDrainAfterGc :: IO ()
 testDeadSocketsDrainAfterGc =
@@ -80,9 +87,11 @@ testMixedLiveAndDeadSockets =
 
 testPendingSocketsInterruptionSafety :: IO ()
 testPendingSocketsInterruptionSafety =
-  withContext (Zmqx.defaultOptions <> maxSockets 8192) \ctx -> do
+  -- Keep enough live sockets to exercise compaction without assuming a very high
+  -- RLIMIT_NOFILE on the host running the suite.
+  withContext (Zmqx.defaultOptions <> maxSockets portableContextMaxSockets) \ctx -> do
     liveSockets <-
-      replicateM 2048 $
+      replicateM portableLiveSocketCount $
         unwrap (openWith ctx (Zmqx.Pair.defaultOptions <> name "interrupt-live-pair"))
     let expectedLiveCount = length liveSockets
 
@@ -119,7 +128,7 @@ testPendingSocketsInterruptionSafety =
       Nothing -> pure ()
       Just remaining ->
         assert False (printf "pendingSockets preserved %d live finalizers; expected %d" remaining expectedLiveCount)
-    assert (expectedLiveCount == 2048) "Expected all live sockets to remain referenced during the test"
+    assert (expectedLiveCount == portableLiveSocketCount) "Expected all live sockets to remain referenced during the test"
 
 main :: IO ()
 main = do

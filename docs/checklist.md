@@ -340,34 +340,36 @@ Acceptance criteria:
 
 Current state:
 
-- [ ] Decision made on region typing.
+- [x] Decision made on region typing.
+- [x] Lifetime rules are currently documented without phantom-region typed sockets.
 
 Implementation checklist:
 
-- [ ] Evaluate documented lifetime rules versus phantom-region typed sockets.
-- [ ] Prefer documentation first unless escaping-socket bugs are common and costly.
-- [ ] Introduce region typing only if it prevents real bugs seen in practice.
+- [x] Evaluate documented lifetime rules versus phantom-region typed sockets.
+- [x] Prefer documentation first unless escaping-socket bugs are common and costly.
+- [x] Introduce region typing only if it prevents real bugs seen in practice.
 
 Acceptance criteria:
 
-- [ ] the chosen lifetime model is explicit and documented.
+- [x] the chosen lifetime model is explicit and documented.
 
 ### 14. Add transitional shims only after the target API is clear
 
 Current state:
 
 - [x] Some compatibility layering already exists.
-- [ ] Compatibility surface is explicitly bounded.
+- [x] The high-level end-state is documented: `Zmqx` remains the direct `IO` API and `Zmqx.Monad` stays additive.
+- [x] Compatibility surface is explicitly bounded.
 
 Implementation checklist:
 
-- [ ] Define the intended public end-state.
-- [ ] Mark compatibility helpers clearly.
-- [ ] Avoid duplicate entry points unless they ease a real migration.
+- [x] Define the intended public end-state.
+- [x] Mark compatibility helpers clearly.
+- [x] Avoid duplicate entry points unless they ease a real migration.
 
 Acceptance criteria:
 
-- [ ] compatibility code has a clear purpose and does not obscure the preferred API.
+- [x] compatibility code has a clear purpose and does not obscure the preferred API.
 
 ## Phase 5: Documentation and Cleanup
 
@@ -375,37 +377,29 @@ Acceptance criteria:
 
 Checklist:
 
-- [ ] Document the preferred API for new users.
-- [ ] Document limitations of `run` versus `withContext`.
-- [ ] Document any thread-lifetime caveats.
-- [ ] Document any shutdown or leak diagnostics.
-- [ ] Keep examples aligned with current recommended usage.
+- [x] Document the preferred API for new users.
+- [x] Document limitations of `run` versus `withContext`.
+- [x] Document any thread-lifetime caveats.
+- [x] Document any shutdown or leak diagnostics.
+- [x] Keep examples aligned with current recommended usage.
 
 ### 16. Keep `TODO.md` in sync as work lands
 
 Checklist:
 
-- [ ] Mark completed items explicitly.
-- [ ] Split vague plan items into implementation-sized tasks when they become active work.
-- [ ] Remove stale plan text once the preferred direction is decided.
+- [x] Mark completed items explicitly.
+- [x] Split vague plan items into implementation-sized tasks when they become active work.
+- [x] Remove stale plan text once the preferred direction is decided.
 
-## Suggested Execution Order
+## Remaining Execution Order
 
-- [ ] 1. `monitor` explicit-context fix and monitor parser cleanup
-- [ ] 2. REQ polling correctness
-- [ ] 3. repair `test-recv-for`
-- [ ] 4. strengthen `withContext` integration tests
-- [ ] 5. finalizer registry compaction and leak diagnostics
-- [ ] 6. decide shutdown timeout behavior
-- [ ] 7. add `run` guard tests
-- [ ] 8. decide child-thread tracking
-- [ ] 9. complete the explicit-context API audit
-- [ ] 10. evaluate optional ergonomic additions such as `withSocket` and region typing
+- [ ] 1. Revisit region typing only if real escaping-socket bugs or multi-context confusion show that documentation-first lifetime rules are insufficient.
+- [ ] 2. Keep the roadmap docs aligned if that future evidence changes the preferred public surface.
 
 ## Definition Of Done For This Round
 
 - [ ] no known correctness bug remains in the current public API
 - [ ] no reachable runtime `undefined` remains
-- [ ] automated tests cover both global and explicit-context modes
-- [ ] `cabal test all` works without manual arguments
-- [ ] `README.md` matches the actual supported behavior
+- [x] automated tests cover both global and explicit-context modes
+- [x] `cabal test all` works without manual arguments
+- [x] `README.md` matches the actual supported behavior

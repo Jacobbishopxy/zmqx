@@ -76,6 +76,10 @@ the `*.open` functions themselves.
 There is no `withSocket` helper on the public API today. That is deliberate: the library currently
 prefers straight-line, context-scoped socket lifetime over per-socket bracketing.
 
+The current public API also does not use phantom-region typed contexts or sockets such as
+`Context s` / `Socket s role`. For now, lifetime is expressed through documented usage rules and
+the existing runtime teardown guarantees rather than extra public type parameters.
+
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -116,6 +120,10 @@ provides a `MonadZmqx` / `ZmqxT` layer for callers that want straight-line expli
 without manually threading `Context`, while the existing `run` and `withContext` entrypoints stay
 available. `runZmqx` reuses `withContext`, so it shares the same teardown semantics rather than
 introducing a second runtime path.
+
+This split is intentional and bounded: `Zmqx` stays the direct API, `Zmqx.Monad` stays the
+effect-layer API, and the library should not grow a second family of duplicate entrypoints unless a
+real migration need appears.
 
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}

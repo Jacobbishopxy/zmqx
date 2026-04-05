@@ -383,7 +383,7 @@ Checklist:
 - [x] Document any shutdown or leak diagnostics.
 - [x] Keep examples aligned with current recommended usage.
 
-### 16. Keep `TODO.md` in sync as work lands
+### 16. Keep roadmap docs in sync as work lands
 
 Checklist:
 
@@ -391,14 +391,14 @@ Checklist:
 - [x] Split vague plan items into implementation-sized tasks when they become active work.
 - [x] Remove stale plan text once the preferred direction is decided.
 
-## Remaining Execution Order
+## Future Revisit Conditions
 
 - [ ] 1. Revisit region typing only if real escaping-socket bugs or multi-context confusion show that documentation-first lifetime rules are insufficient.
 - [ ] 2. Keep the roadmap docs aligned if that future evidence changes the preferred public surface.
 
 ## Definition Of Done For This Round
 
-- [ ] no known correctness bug remains in the current public API
+- [x] no known correctness bug remains in the current public API
 - [x] no reachable runtime `undefined` remains
 - [x] automated tests cover both global and explicit-context modes
 - [x] `cabal test all` works without manual arguments

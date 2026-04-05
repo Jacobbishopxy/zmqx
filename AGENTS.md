@@ -5,15 +5,15 @@
 - `zmqx.cabal` defines the library surface; `cabal.project` pins local builds.
 - `lib/` contains the Haskell source. `Zmqx.hs` re-exports the public API; `Zmqx/Core/*` manages context, polling, monitoring, and socket lifecycles; `Zmqx/Internal/*` holds FFI bindings and constants; `Zmqx/*.hs` implements socket roles (Req, Rep, Dealer, Router, Pub/Sub, etc.).
 - `c/` wraps `libzmq` with `zmq-wrapper.c` and helpers referenced by the cabal stanza.
-- `test/` houses scenario-style executables defined in `test/test.cabal` (SimpleReq/Rep, Dealer/Router, Pub/Sub, proxies, workers). Add new cases here and register them in `test/test.cabal`.
+- `test/` houses scenario-style executables defined in `test/test.cabal`, including demo/manual suites gated behind `demo-tests` and default automated suites such as `*Auto`, `ReqPoll`, `RunGuard`, and `ZmqxMonad`. Add new cases here and register them in `test/test.cabal`.
 - `dist-newstyle/` is build output; leave it untouched.
 
 ## Build, Test, and Development Commands
 
 - Ensure `libzmq` (>=4,<5) is available via `pkg-config`; export `PKG_CONFIG_PATH` if it lives in a non-default prefix.
 - Build the library: `cabal build [--flag debug]`. The `debug` flag enables extra tracing at the C boundary.
-- Run tests: `cabal test test-simple-dealer --flag debug` (swap the suite name as needed) or `cabal test all` for a full sweep.
-- REPL for quick experiments: `cabal repl zmqx` (library) or `cabal repl test:test-simple-req` (per-suite).
+- Run tests: `cabal test all` for the default automated sweep, or `cabal test test-req-poll` for a targeted automated suite. Demo-style suites such as `test-simple-dealer` require `--flag demo-tests` (for example `cabal test test-simple-dealer --flag demo-tests --flag debug`).
+- REPL for quick experiments: `cabal repl zmqx` (library) or `cabal repl test:test-req-poll` (per-suite). Demo-style test REPL targets also require `--flag demo-tests`.
 
 ## Coding Style & Naming Conventions
 

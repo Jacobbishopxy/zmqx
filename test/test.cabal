@@ -257,6 +257,12 @@ test-suite test-event-loop-send-auto
   main-is:       EventLoopSendAuto.hs
   build-depends: bytestring
 
+test-suite test-event-loop-receive-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       EventLoopReceiveAuto.hs
+  build-depends: bytestring
+
 test-suite test-monitor-event
   import:        test-properties
   type:          exitcode-stdio-1.0

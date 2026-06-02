@@ -38,6 +38,7 @@ library
   exposed-modules:
     Zmqx
     Zmqx.Dealer
+    Zmqx.EventLoop
     Zmqx.Monad
     Zmqx.Options
     Zmqx.Pair
@@ -78,6 +79,7 @@ library
     , containers
     , mtl
     , primitive
+    , stm
     , text
     , transformers
 

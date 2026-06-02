@@ -12,6 +12,15 @@ module Zmqx
     ContextualOpen (..),
     pendingSockets,
 
+    -- * Event loop
+    EventLoop,
+    EventLoopSpec,
+    ReceiverMode (..),
+    emptySpec,
+    addSender,
+    withEventLoop,
+    withEventLoopIn,
+
     -- ** Main options
     Options.ioThreads,
     Options.maxSockets,
@@ -115,6 +124,7 @@ import Zmqx.Core.Poll (CanPoll, PollEvent (..), Ready (..), Sockets, poll, pollF
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Dealer (Dealer)
 import Zmqx.Error (Error (..))
+import Zmqx.EventLoop (EventLoop, EventLoopSpec, ReceiverMode (..), addSender, emptySpec, withEventLoop, withEventLoopIn)
 import Zmqx.Internal
 import Zmqx.Options qualified as Opt
 import Zmqx.Pair (Pair)

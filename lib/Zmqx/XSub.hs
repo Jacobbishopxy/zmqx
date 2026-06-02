@@ -25,7 +25,7 @@ import Zmqx.Core.Context (Context, ContextualOpen (..))
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
 import Zmqx.Core.Poll qualified as Poll
-import Zmqx.Core.Socket (CanReceive, CanReceives, CanReceivesFor, CanSend, Socket (..))
+import Zmqx.Core.Socket (CanReceive, CanReceives, CanReceivesFor, CanSend, CanSends, Socket (..))
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Error (Error, catchingOkErrors, throwOkError)
 import Zmqx.Internal
@@ -39,6 +39,9 @@ type XSub =
 
 instance CanSend XSub where
   send_ = send
+
+instance CanSends XSub where
+  sends_ = sends
 
 instance CanReceive XSub where
   receive_ = receive

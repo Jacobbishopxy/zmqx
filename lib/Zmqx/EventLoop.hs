@@ -13,9 +13,12 @@
 -- by receiver-only endpoints.
 --
 -- Endpoint names form one namespace across sender, receiver, and transceiver
--- registrations; duplicates are rejected before the worker thread starts. While
--- 'withEventLoop' or 'withEventLoopIn' is running, all registered sockets are
--- owned exclusively by the event-loop worker thread; callers must send through
+-- registrations; duplicates are rejected before the worker thread starts.
+-- Registered sockets must belong to the context selected by 'withEventLoop' or
+-- 'withEventLoopIn'; context mismatches are rejected during bracket startup
+-- before worker ownership begins. While 'withEventLoop' or 'withEventLoopIn' is
+-- running, all registered sockets are owned exclusively by the event-loop worker
+-- thread; callers must send through
 -- 'send' and read mailbox receivers through 'recv' instead of using the sockets
 -- directly. Ownership returns to the surrounding bracket only after the event
 -- loop exits, and shutdown wakes pending public send/recv callers with either
@@ -259,10 +262,11 @@ addTransceiver endpoint socket mode spec@EventLoopSpec {specTransceivers} =
 -- | Run an event loop using the active global context.
 --
 -- Use this with sockets opened through the normal @open@ helpers inside
--- 'Zmqx.run'. Registered sockets must belong to that active global context and
--- are worker-owned for the duration of the bracketed action. This bracketed
--- helper is the public lifecycle boundary; loop startup and shutdown remain
--- internal so stopped loops cannot be reused as long-lived mutable objects.
+-- 'Zmqx.run'. Registered sockets must belong to that active global context;
+-- mismatches are rejected before the worker thread starts. Sockets are
+-- worker-owned for the duration of the bracketed action. This bracketed helper
+-- is the public lifecycle boundary; loop startup and shutdown remain internal so
+-- stopped loops cannot be reused as long-lived mutable objects.
 withEventLoop :: EventLoopSpec -> (EventLoop -> IO a) -> IO a
 withEventLoop spec action = do
   context <- getActiveGlobalContext
@@ -271,8 +275,9 @@ withEventLoop spec action = do
 -- | Run an event loop using an explicit context.
 --
 -- Use this with sockets opened through @openWith@ against the same 'Context'.
--- Registered sockets are worker-owned for the duration of the bracketed action;
--- as with 'withEventLoop', the bracket is the public lifecycle boundary.
+-- Context mismatches are rejected before the worker thread starts. Registered
+-- sockets are worker-owned for the duration of the bracketed action; as with
+-- 'withEventLoop', the bracket is the public lifecycle boundary.
 withEventLoopIn :: Context -> EventLoopSpec -> (EventLoop -> IO a) -> IO a
 withEventLoopIn =
   withLoop

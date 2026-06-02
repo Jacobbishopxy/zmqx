@@ -47,6 +47,20 @@ threading.
 
 `Zmqx.Monad` is additive, not a replacement for `Zmqx`.
 
+### Optional Reactor API: `Zmqx.EventLoop`
+
+Use the event loop when you want one worker thread to own registered sockets and expose named
+sender, receiver mailbox, callback, or transceiver endpoints.
+
+- Pros: centralizes socket ownership and polling for small reactor-style components.
+- Cons: intentionally narrow MVP; registered sockets must not be touched directly while the loop
+  runs, and callbacks execute on the worker thread.
+- Best fit: applications that want a concise reactor around existing direct API sockets.
+
+`Zmqx.EventLoop` works with both `Zmqx.run`/`withEventLoop` and
+`Zmqx.withContext`/`withEventLoopIn`. It is optional and additive to the direct and monad-style
+APIs, not a replacement runtime.
+
 ## Test & Build
 
 ```sh

@@ -2,13 +2,14 @@
 
 ## Start Here
 
-`zmqx` currently supports two user-facing styles:
+`zmqx` currently supports two user-facing styles plus an optional reactor helper:
 
 - Direct API via `Zmqx`
 - Monad-style API via `Zmqx.Monad`
+- Optional event-loop reactor via `Zmqx.EventLoop`
 
-Both styles share the same socket/runtime behavior. The difference is how context lifetime is
-expressed in your application code.
+All styles share the same socket/runtime behavior. The difference is how context lifetime and
+socket ownership are expressed in your application code.
 
 ## Choosing An API Style
 
@@ -200,6 +201,90 @@ main =
 
 Use this when your application already benefits from an effect layer and you want less
 context-plumbing noise.
+
+## Optional Reactor: `Zmqx.EventLoop`
+
+Use `Zmqx.EventLoop` when you want one worker thread to own registered sockets and expose named
+sender, receiver, or transceiver endpoints. It is additive to the direct and monad APIs, not a
+replacement runtime.
+
+Supported MVP endpoint shapes are:
+
+- `addSender` plus qualified `EventLoop.send` for single-frame outbound commands
+- `addReceiver` with `EventLoop.Mailbox n` plus qualified `EventLoop.recv` for bounded multipart
+  mailbox reads
+- `addReceiver` with `EventLoop.Callback cb` for quick callbacks that run on the worker thread
+- `addTransceiver` when one socket should both send single frames and receive multipart messages
+
+Registered sockets are owned exclusively by the event-loop worker while the bracket is active. Bind
+or connect them before starting the loop, then use `EventLoop.send`/`EventLoop.recv` instead of
+touching the registered sockets directly.
+
+### `Zmqx.run` plus `withEventLoop`
+
+Use `withEventLoop` with sockets opened through the normal role-module `open` helpers inside
+`Zmqx.run`.
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+module Main where
+
+import Control.Exception (throwIO)
+import Zmqx qualified
+import Zmqx.EventLoop qualified as EventLoop
+import Zmqx.Pull qualified
+import Zmqx.Push qualified
+
+unwrap :: Either Zmqx.Error a -> IO a
+unwrap =
+  either throwIO pure
+
+main :: IO ()
+main =
+  Zmqx.run Zmqx.defaultOptions do
+    pull <- unwrap (Zmqx.Pull.open (Zmqx.Pull.defaultOptions <> Zmqx.name "reactor-in"))
+    push <- unwrap (Zmqx.Push.open (Zmqx.Push.defaultOptions <> Zmqx.name "reactor-out"))
+
+    let endpoint = "inproc://event-loop"
+    unwrap (Zmqx.bind pull endpoint)
+    unwrap (Zmqx.connect push endpoint)
+
+    let spec =
+          Zmqx.addReceiver "inbox" pull (EventLoop.Mailbox 4)
+            (Zmqx.addSender "outbox" push Zmqx.emptySpec)
+
+    Zmqx.withEventLoop spec \loop -> do
+      unwrap (EventLoop.send loop "outbox" "hello")
+      received <- unwrap (EventLoop.recv loop "inbox" 1000)
+      print received
+```
+
+### `Zmqx.withContext` plus `withEventLoopIn`
+
+Use `withEventLoopIn` with sockets opened through `openWith` against the same explicit context.
+This is the EventLoop form of the direct explicit-context style. With the same helper/import pattern
+as above, plus `import Zmqx.Pair qualified`:
+
+```haskell
+Zmqx.withContext Zmqx.defaultOptions \ctx -> do
+  pair <- unwrap (Zmqx.openWith ctx (Zmqx.Pair.defaultOptions <> Zmqx.name "reactor-pair"))
+  peer <- unwrap (Zmqx.openWith ctx (Zmqx.Pair.defaultOptions <> Zmqx.name "reactor-peer"))
+
+  let endpoint = "inproc://event-loop-explicit"
+  unwrap (Zmqx.bind pair endpoint)
+  unwrap (Zmqx.connect peer endpoint)
+
+  let spec = Zmqx.addTransceiver "pair" pair (EventLoop.Mailbox 4) Zmqx.emptySpec
+  Zmqx.withEventLoopIn ctx spec \loop -> do
+    unwrap (Zmqx.sends peer ["from", "peer"])
+    inbound <- unwrap (EventLoop.recv loop "pair" 1000)
+    print inbound
+    unwrap (EventLoop.send loop "pair" "reply")
+```
+
+For callbacks, replace `EventLoop.Mailbox n` with `EventLoop.Callback callback`; callbacks should
+be quick and nonblocking because they run on the event-loop worker thread.
 
 ## Lifetime And Shutdown Notes
 

@@ -70,6 +70,13 @@ The default automated sweep is buildable without `--flag demo-tests` and include
 - `test-finalizer-registry`
 - `test-zmqxt`
 
+### EventLoop MVP Coverage
+
+- `test-event-loop-send-auto` — named sender commands and context modes
+- `test-event-loop-receive-auto` — mailbox, callback, timeout, and stopped-loop receive paths
+- `test-event-loop-transceiver-auto` — transceiver send/receive behavior
+- `test-event-loop-safety-auto` — duplicate endpoint, context mismatch, and lifecycle safety
+
 ### Automated Scenario Coverage
 
 - `test-req-rep-auto`

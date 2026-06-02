@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-06-02
 **Status:** Active
-**Next Task ID:** TP-002
+**Next Task ID:** TP-006
 
 ---
 
@@ -22,6 +22,13 @@ parallel batch execution or `/orch <path/to/PROMPT.md>` for a single task.
 |----------|------|
 | Tasks | `taskplane-tasks/` |
 | Config | `.pi/taskplane-config.json` |
+
+---
+
+## Operational Rules
+
+- One Taskplane task equals one final commit. Squash all step, review, hydration, checkpoint, `.DONE`, and task artifact changes for a `TP-###` into exactly one commit before integration.
+- If a task cannot be represented as one coherent commit, split it into multiple TPs rather than committing multiple times for the same TP.
 
 ---
 

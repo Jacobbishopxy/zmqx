@@ -29,6 +29,7 @@
 ## Commit & Pull Request Guidelines
 
 - Commit messages follow the current history: emoji prefix + scope + concise action, e.g., `♻️ (Core/Context): replace IORef...`. Keep summaries in the imperative mood.
+- Taskplane work uses one commit per TP: squash all plan, implementation, hydration, review, checkpoint, `.DONE`, and task artifact changes for a single `TP-###` into exactly one commit before integration. If a TP is too large for one coherent commit, split the work into multiple TPs instead of making multiple commits for one TP.
 - PRs should describe behavior changes, list impacted commands, and note test runs (`cabal test ...`). Link related issues and add logs or screenshots when touching visible behavior.
 
 ## Security & Configuration Tips

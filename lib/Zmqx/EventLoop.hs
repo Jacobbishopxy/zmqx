@@ -7,8 +7,8 @@
 -- An 'EventLoopSpec' registers application-created sender, receiver, and
 -- transceiver sockets under stable names. A transceiver, registered with
 -- @addTransceiver@, is a single socket that participates in both halves of the
--- API: it must support single-frame sends, multipart receives, and poll-in
--- readiness; public 'send' commands write through the worker and inbound
+-- API: it must support multipart sends, multipart receives, and poll-in
+-- readiness; public 'send'/'sends' commands write through the worker and inbound
 -- multipart messages are delivered with the same 'ReceiverMode' machinery used
 -- by receiver-only endpoints.
 --
@@ -34,6 +34,7 @@ module Zmqx.EventLoop
     withEventLoop,
     withEventLoopIn,
     send,
+    sends,
     recv,
   )
 where
@@ -66,6 +67,8 @@ import Control.Monad (when)
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
 import Data.IORef (readIORef)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Set (Set)
@@ -147,7 +150,7 @@ instance Show ReceiverMode where
     Callback _ -> "Callback <function>"
 
 data Sender where
-  Sender :: Socket.CanSend (Socket a) => !(Socket a) -> Sender
+  Sender :: Socket.CanSends (Socket a) => !(Socket a) -> Sender
 
 data Receiver where
   Receiver ::
@@ -158,7 +161,7 @@ data Receiver where
 
 data Transceiver where
   Transceiver ::
-    (Socket.CanSend (Socket a), Socket.CanReceives (Socket a), Poll.CanPoll 'Poll.PollIn a) =>
+    (Socket.CanSends (Socket a), Socket.CanReceives (Socket a), Poll.CanPoll 'Poll.PollIn a) =>
     !(Socket a) ->
     !ReceiverMode ->
     Transceiver
@@ -187,7 +190,7 @@ data WorkerReceivers = WorkerReceivers
 type SendReply = Either SomeException (Either Error ())
 
 data Command
-  = Send !Text !ByteString !(MVar SendReply)
+  = Send !Text !(NonEmpty ByteString) !(MVar SendReply)
   | Stop
 
 data RecvOutcome
@@ -210,7 +213,7 @@ emptySpec =
 -- The sender socket must belong to the context selected by 'withEventLoop' or
 -- 'withEventLoopIn'. Once the loop starts, the worker owns the socket until the
 -- bracketed action exits.
-addSender :: Socket.CanSend (Socket a) => Text -> Socket a -> EventLoopSpec -> EventLoopSpec
+addSender :: Socket.CanSends (Socket a) => Text -> Socket a -> EventLoopSpec -> EventLoopSpec
 addSender endpoint socket spec@EventLoopSpec {specSenders} =
   spec
     { specSenders = Map.insert endpoint (Sender socket) specSenders,
@@ -241,13 +244,13 @@ addReceiver endpoint socket mode spec@EventLoopSpec {specReceivers} =
 -- | Register a named transceiver socket with a delivery mode.
 --
 -- The transceiver socket must belong to the context selected by
--- 'withEventLoop' or 'withEventLoopIn'. Public 'send' calls write a
--- single-frame message through the worker, and inbound multipart messages use
+-- 'withEventLoop' or 'withEventLoopIn'. Public 'send'/'sends' calls write
+-- multipart messages through the worker, and inbound multipart messages use
 -- the supplied 'ReceiverMode' just like receiver-only endpoints. Registered
 -- transceivers are polled by the worker, so callers must not send to or receive
 -- from those sockets directly while the loop is running.
 addTransceiver ::
-  (Socket.CanSend (Socket a), Socket.CanReceives (Socket a), Poll.CanPoll 'Poll.PollIn a) =>
+  (Socket.CanSends (Socket a), Socket.CanReceives (Socket a), Poll.CanPoll 'Poll.PollIn a) =>
   Text ->
   Socket a ->
   ReceiverMode ->
@@ -425,11 +428,11 @@ nextCommand WorkerReceivers {workerReceiverPollSet} commands =
 
 handleCommand :: TVar Bool -> Map Text Sender -> Command -> IO Bool
 handleCommand accepting senders = \case
-  Send endpoint frame reply -> do
+  Send endpoint frames reply -> do
     result <- try do
       case Map.lookup endpoint senders of
         Nothing -> pure (Left (missingSenderError endpoint))
-        Just sender -> sendWithSender accepting sender frame
+        Just sender -> sendWithSender accepting sender frames
     case result of
       Left exception -> do
         putMVar reply (Left exception)
@@ -481,17 +484,18 @@ receiveWithReceiver (ReceiverRuntime socket _) =
     Left err -> throwIO err
     Right frames -> pure frames
 
-sendWithSender :: TVar Bool -> Sender -> ByteString -> IO (Either Error ())
-sendWithSender accepting (Sender socket) frame =
+sendWithSender :: TVar Bool -> Sender -> NonEmpty ByteString -> IO (Either Error ())
+sendWithSender accepting (Sender socket) frames =
   case Socket.extra socket of
-    Socket.DealerExtra -> sendWithShutdownAwareSocket accepting socket frame
-    Socket.PairExtra -> sendWithShutdownAwareSocket accepting socket frame
-    Socket.PushExtra -> sendWithShutdownAwareSocket accepting socket frame
-    Socket.ReqExtra _ -> sendWithShutdownAwareSocket accepting socket frame
-    _ -> Socket.send_ socket frame
+    Socket.DealerExtra -> sendWithShutdownAwareSocket accepting socket frames
+    Socket.PairExtra -> sendWithShutdownAwareSocket accepting socket frames
+    Socket.PushExtra -> sendWithShutdownAwareSocket accepting socket frames
+    Socket.ReqExtra _ -> sendWithShutdownAwareSocket accepting socket frames
+    Socket.RouterExtra -> sendWithShutdownAwareSocket accepting socket frames
+    _ -> Socket.sends_ socket (NonEmpty.toList frames)
 
-sendWithShutdownAwareSocket :: TVar Bool -> Socket a -> ByteString -> IO (Either Error ())
-sendWithShutdownAwareSocket accepting socket frame =
+sendWithShutdownAwareSocket :: TVar Bool -> Socket a -> NonEmpty ByteString -> IO (Either Error ())
+sendWithShutdownAwareSocket accepting socket frames =
   catchingOkErrors sendLoop >>= \case
     Left err -> pure (Left err)
     Right SendCompleted -> pure (Right ())
@@ -501,7 +505,7 @@ sendWithShutdownAwareSocket accepting socket frame =
       atomically (readTVar accepting) >>= \case
         False -> pure SendStopped
         True ->
-          Socket.sendOneDontWait socket frame False >>= \case
+          Socket.sendManyDontWait socket frames >>= \case
             True -> pure SendCompleted
             False -> do
               threadDelay senderRetrySliceUs
@@ -535,22 +539,34 @@ validateSpecContext loopContext EventLoopSpec {specSenders, specReceivers, specT
 
 -- | Queue a single-frame send command for a registered sender.
 --
+-- This is a convenience wrapper around 'sends'.
+send :: EventLoop -> Text -> ByteString -> IO (Either Error ())
+send loop endpoint frame =
+  sends loop endpoint [frame]
+
+-- | Queue a multipart send command for a registered sender.
+--
 -- Public calls never touch registered sender or transceiver sockets directly.
 -- While the loop is running this function writes a command to the worker and
 -- waits for the worker's result. Sender roles whose underlying socket send may
 -- block are retried by the worker in shutdown-aware slices, so bracket exit can
--- wake pending 'send' callers with @ETERM@ instead of deadlocking. Missing
--- sender keys and stopped loops are normal user-visible failures and return
--- 'Left' 'Error'.
-send :: EventLoop -> Text -> ByteString -> IO (Either Error ())
-send EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerDone} endpoint frame = do
+-- wake pending 'send'/'sends' callers with @ETERM@ instead of deadlocking.
+-- Missing sender keys and stopped loops are normal user-visible failures and
+-- return 'Left' 'Error'. An empty frame list is a no-op.
+sends :: EventLoop -> Text -> [ByteString] -> IO (Either Error ())
+sends loop endpoint = \case
+  [] -> pure (Right ())
+  frame : frames -> queueSend loop endpoint (frame :| frames)
+
+queueSend :: EventLoop -> Text -> NonEmpty ByteString -> IO (Either Error ())
+queueSend EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerDone} endpoint frames = do
   reply <- newEmptyMVar
   queued <-
     atomically do
       accepting <- readTVar eventLoopAccepting
       if accepting
         then do
-          writeTQueue eventLoopCommands (Send endpoint frame reply)
+          writeTQueue eventLoopCommands (Send endpoint frames reply)
           pure True
         else pure False
   if queued

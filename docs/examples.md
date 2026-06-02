@@ -51,6 +51,10 @@ cabal test test-simple-dealer --flag demo-tests --flag debug
 - [test/SimpleProxy.hs](../test/SimpleProxy.hs)
 - [test/SimpleBroker.hs](../test/SimpleBroker.hs)
 
+### EventLoop Trader Demo
+
+- [test/TraderDemoFrame.hs](../test/TraderDemoFrame.hs) — OMS-like broker/trader/client demo inspired by Conflux's `trader_demo_frame.cc`; the trader publishes reports on a fixed interval and the client subscription receives independently of its order-sending loop. Run `cabal test test-trader-demo-frame --flag demo-tests` for the finite smoke path or `cabal run test:test-trader-demo-frame --flag demo-tests -- broker|trader|client` in separate terminals.
+
 ### Worker Topologies
 
 - [test/MutWorker.hs](../test/MutWorker.hs)

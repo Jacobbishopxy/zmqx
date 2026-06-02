@@ -188,6 +188,15 @@ test-suite test-simple-proxy
   if !flag(demo-tests)
     buildable: False
 
+test-suite test-trader-demo-frame
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       TraderDemoFrame.hs
+  build-depends: bytestring
+
+  if !flag(demo-tests)
+    buildable: False
+
 ------------------------------------------------------------------------------------------------
 -- Router -> Dealer (inproc) -> Rep[] (inproc)
 

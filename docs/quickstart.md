@@ -210,15 +210,15 @@ replacement runtime.
 
 Supported MVP endpoint shapes are:
 
-- `addSender` plus qualified `EventLoop.send` for single-frame outbound commands
+- `addSender` plus qualified `EventLoop.send` / `EventLoop.sends` for outbound commands
 - `addReceiver` with `EventLoop.Mailbox n` plus qualified `EventLoop.recv` for bounded multipart
   mailbox reads
 - `addReceiver` with `EventLoop.Callback cb` for quick callbacks that run on the worker thread
-- `addTransceiver` when one socket should both send single frames and receive multipart messages
+- `addTransceiver` when one socket should both send and receive multipart messages
 
 Registered sockets are owned exclusively by the event-loop worker while the bracket is active. Bind
-or connect them before starting the loop, then use `EventLoop.send`/`EventLoop.recv` instead of
-touching the registered sockets directly.
+or connect them before starting the loop, then use `EventLoop.send`/`EventLoop.sends`/`EventLoop.recv`
+instead of touching the registered sockets directly.
 
 ### `Zmqx.run` plus `withEventLoop`
 
@@ -280,11 +280,12 @@ Zmqx.withContext Zmqx.defaultOptions \ctx -> do
     unwrap (Zmqx.sends peer ["from", "peer"])
     inbound <- unwrap (EventLoop.recv loop "pair" 1000)
     print inbound
-    unwrap (EventLoop.send loop "pair" "reply")
+    unwrap (EventLoop.sends loop "pair" ["reply", "metadata"])
 ```
 
 For callbacks, replace `EventLoop.Mailbox n` with `EventLoop.Callback callback`; callbacks should
-be quick and nonblocking because they run on the event-loop worker thread.
+be quick and nonblocking because they run on the event-loop worker thread. For a larger multipart
+routing example, see `test/TraderDemoFrame.hs`.
 
 ## Lifetime And Shutdown Notes
 

@@ -19,6 +19,7 @@ module Zmqx
     emptySpec,
     addSender,
     addReceiver,
+    addTransceiver,
     withEventLoop,
     withEventLoopIn,
 
@@ -125,7 +126,7 @@ import Zmqx.Core.Poll (CanPoll, PollEvent (..), Ready (..), Sockets, poll, pollF
 import Zmqx.Core.Socket qualified as Socket
 import Zmqx.Dealer (Dealer)
 import Zmqx.Error (Error (..))
-import Zmqx.EventLoop (EventLoop, EventLoopSpec, ReceiverMode (..), addReceiver, addSender, emptySpec, withEventLoop, withEventLoopIn)
+import Zmqx.EventLoop (EventLoop, EventLoopSpec, ReceiverMode (..), addReceiver, addSender, addTransceiver, emptySpec, withEventLoop, withEventLoopIn)
 import Zmqx.Internal
 import Zmqx.Options qualified as Opt
 import Zmqx.Pair (Pair)

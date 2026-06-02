@@ -4,12 +4,22 @@
 
 -- | Minimal event-loop API for worker-owned sockets.
 --
--- An 'EventLoopSpec' registers application-created sender and receiver sockets
--- under stable names. While 'withEventLoop' or 'withEventLoopIn' is running,
--- those registered sockets are owned exclusively by the event-loop worker
--- thread; callers must send through 'send' and read mailbox receivers through
--- 'recv' instead of using the sockets directly. Ownership returns to the
--- surrounding bracket only after the event loop exits.
+-- An 'EventLoopSpec' registers application-created sender, receiver, and
+-- transceiver sockets under stable names. A transceiver, registered with
+-- @addTransceiver@, is a single socket that participates in both halves of the
+-- API: it must support single-frame sends, multipart receives, and poll-in
+-- readiness; public 'send' commands write through the worker and inbound
+-- multipart messages are delivered with the same 'ReceiverMode' machinery used
+-- by receiver-only endpoints.
+--
+-- Endpoint names form one namespace across sender, receiver, and transceiver
+-- registrations; duplicates are rejected before the worker thread starts. While
+-- 'withEventLoop' or 'withEventLoopIn' is running, all registered sockets are
+-- owned exclusively by the event-loop worker thread; callers must send through
+-- 'send' and read mailbox receivers through 'recv' instead of using the sockets
+-- directly. Ownership returns to the surrounding bracket only after the event
+-- loop exits, and shutdown wakes pending public send/recv callers with either
+-- the recorded worker exception or a stopped-loop error.
 module Zmqx.EventLoop
   ( EventLoop,
     EventLoopSpec,
@@ -17,6 +27,7 @@ module Zmqx.EventLoop
     emptySpec,
     addSender,
     addReceiver,
+    addTransceiver,
     withEventLoop,
     withEventLoopIn,
     send,
@@ -47,13 +58,15 @@ import Control.Concurrent.STM
     writeTQueue,
     writeTVar,
   )
-import Control.Exception (SomeException, bracket, finally, mask_, throwIO, try)
+import Control.Exception (SomeException, bracket, mask_, throwIO, try)
 import Control.Monad (when)
 import Data.ByteString (ByteString)
 import Data.Foldable (traverse_)
 import Data.IORef (readIORef)
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Word (Word64)
@@ -64,7 +77,7 @@ import Zmqx.Core.Context (Context (..), RunError (..), globalContextRef, globalS
 import Zmqx.Core.Poll qualified as Poll
 import Zmqx.Core.Socket (Socket)
 import Zmqx.Core.Socket qualified as Socket
-import Zmqx.Error (Error (..))
+import Zmqx.Error (Error (..), catchingOkErrors)
 import Zmqx.Internal (Zmq_error (EINVAL, ENOENT, ETERM))
 
 -- | Opaque handle to a running event loop.
@@ -72,7 +85,9 @@ import Zmqx.Internal (Zmq_error (EINVAL, ENOENT, ETERM))
 -- Registered sockets are owned exclusively by the event-loop worker while the
 -- loop is running. Public callers should interact with them through command
 -- helpers such as 'send' and mailbox reads through 'recv', not by touching
--- those sockets directly.
+-- those sockets directly. After the bracket exits, public operations consult
+-- loop state and the worker result only; they fail with a stopped-loop error or
+-- rethrow the recorded worker failure without touching worker-owned sockets.
 data EventLoop = EventLoop
   { eventLoopCommands :: !(TQueue Command),
     eventLoopAccepting :: !(TVar Bool),
@@ -82,12 +97,17 @@ data EventLoop = EventLoop
 
 -- | Declarative event-loop configuration.
 --
--- The configuration supports registering named sender sockets and named
--- receiver sockets. Each registered socket is handed to the event-loop worker
--- for exclusive use while the loop runs.
+-- The configuration supports registering named sender, receiver, and
+-- transceiver sockets. Endpoint names are a single namespace across all three
+-- roles: if a name is registered more than once, whether in the same role or
+-- across different roles, loop startup fails deterministically before any
+-- worker thread takes ownership of sockets. Each registered socket is handed to
+-- the event-loop worker for exclusive use while the loop runs.
 data EventLoopSpec = EventLoopSpec
   { specSenders :: !(Map Text Sender),
-    specReceivers :: !(Map Text Receiver)
+    specReceivers :: !(Map Text Receiver),
+    specTransceivers :: !(Map Text Transceiver),
+    specDuplicateEndpoints :: !(Set Text)
   }
 
 -- | Receiver delivery mode.
@@ -133,6 +153,13 @@ data Receiver where
     !ReceiverMode ->
     Receiver
 
+data Transceiver where
+  Transceiver ::
+    (Socket.CanSend (Socket a), Socket.CanReceives (Socket a), Poll.CanPoll 'Poll.PollIn a) =>
+    !(Socket a) ->
+    !ReceiverMode ->
+    Transceiver
+
 data ReceiverDelivery
   = NoReceiverDelivery
   | MailboxDelivery !(TBQueue [ByteString])
@@ -170,7 +197,9 @@ emptySpec :: EventLoopSpec
 emptySpec =
   EventLoopSpec
     { specSenders = Map.empty,
-      specReceivers = Map.empty
+      specReceivers = Map.empty,
+      specTransceivers = Map.empty,
+      specDuplicateEndpoints = Set.empty
     }
 
 -- | Register a named sender socket.
@@ -180,7 +209,10 @@ emptySpec =
 -- bracketed action exits.
 addSender :: Socket.CanSend (Socket a) => Text -> Socket a -> EventLoopSpec -> EventLoopSpec
 addSender endpoint socket spec@EventLoopSpec {specSenders} =
-  spec {specSenders = Map.insert endpoint (Sender socket) specSenders}
+  spec
+    { specSenders = Map.insert endpoint (Sender socket) specSenders,
+      specDuplicateEndpoints = recordDuplicateEndpoint endpoint spec
+    }
 
 -- | Register a named receiver socket with a delivery mode.
 --
@@ -198,13 +230,39 @@ addReceiver ::
   EventLoopSpec ->
   EventLoopSpec
 addReceiver endpoint socket mode spec@EventLoopSpec {specReceivers} =
-  spec {specReceivers = Map.insert endpoint (Receiver socket mode) specReceivers}
+  spec
+    { specReceivers = Map.insert endpoint (Receiver socket mode) specReceivers,
+      specDuplicateEndpoints = recordDuplicateEndpoint endpoint spec
+    }
+
+-- | Register a named transceiver socket with a delivery mode.
+--
+-- The transceiver socket must belong to the context selected by
+-- 'withEventLoop' or 'withEventLoopIn'. Public 'send' calls write a
+-- single-frame message through the worker, and inbound multipart messages use
+-- the supplied 'ReceiverMode' just like receiver-only endpoints. Registered
+-- transceivers are polled by the worker, so callers must not send to or receive
+-- from those sockets directly while the loop is running.
+addTransceiver ::
+  (Socket.CanSend (Socket a), Socket.CanReceives (Socket a), Poll.CanPoll 'Poll.PollIn a) =>
+  Text ->
+  Socket a ->
+  ReceiverMode ->
+  EventLoopSpec ->
+  EventLoopSpec
+addTransceiver endpoint socket mode spec@EventLoopSpec {specTransceivers} =
+  spec
+    { specTransceivers = Map.insert endpoint (Transceiver socket mode) specTransceivers,
+      specDuplicateEndpoints = recordDuplicateEndpoint endpoint spec
+    }
 
 -- | Run an event loop using the active global context.
 --
 -- Use this with sockets opened through the normal @open@ helpers inside
 -- 'Zmqx.run'. Registered sockets must belong to that active global context and
--- are worker-owned for the duration of the bracketed action.
+-- are worker-owned for the duration of the bracketed action. This bracketed
+-- helper is the public lifecycle boundary; loop startup and shutdown remain
+-- internal so stopped loops cannot be reused as long-lived mutable objects.
 withEventLoop :: EventLoopSpec -> (EventLoop -> IO a) -> IO a
 withEventLoop spec action = do
   context <- getActiveGlobalContext
@@ -213,15 +271,30 @@ withEventLoop spec action = do
 -- | Run an event loop using an explicit context.
 --
 -- Use this with sockets opened through @openWith@ against the same 'Context'.
--- Registered sockets are worker-owned for the duration of the bracketed action.
+-- Registered sockets are worker-owned for the duration of the bracketed action;
+-- as with 'withEventLoop', the bracket is the public lifecycle boundary.
 withEventLoopIn :: Context -> EventLoopSpec -> (EventLoop -> IO a) -> IO a
 withEventLoopIn =
   withLoop
 
 withLoop :: Context -> EventLoopSpec -> (EventLoop -> IO a) -> IO a
 withLoop loopContext spec action = do
+  validateDuplicateEndpoints spec
   validateSpecContext loopContext spec
   bracket (startEventLoop spec) stopEventLoop action
+
+recordDuplicateEndpoint :: Text -> EventLoopSpec -> Set Text
+recordDuplicateEndpoint endpoint EventLoopSpec {specSenders, specReceivers, specTransceivers, specDuplicateEndpoints} =
+  if endpoint `Map.member` specSenders
+    || endpoint `Map.member` specReceivers
+    || endpoint `Map.member` specTransceivers
+    then Set.insert endpoint specDuplicateEndpoints
+    else specDuplicateEndpoints
+
+validateDuplicateEndpoints :: EventLoopSpec -> IO ()
+validateDuplicateEndpoints EventLoopSpec {specDuplicateEndpoints} =
+  when (not (Set.null specDuplicateEndpoints)) do
+    throwIO (duplicateEndpointNameError specDuplicateEndpoints)
 
 getActiveGlobalContext :: IO Context
 getActiveGlobalContext =
@@ -235,15 +308,14 @@ getActiveGlobalContext =
           }
 
 startEventLoop :: EventLoopSpec -> IO EventLoop
-startEventLoop EventLoopSpec {specSenders, specReceivers} =
+startEventLoop EventLoopSpec {specSenders, specReceivers, specTransceivers} =
   mask_ do
     commands <- newTQueueIO
     accepting <- newTVarIO True
     workerDone <- newEmptyMVar
-    (receiverHandles, workerReceivers) <- prepareReceivers specReceivers
+    (receiverHandles, workerReceivers) <- prepareReceivers (mergeReceivers specReceivers specTransceivers)
     _ <- forkIO do
-      result <- try (workerLoop accepting specSenders workerReceivers commands)
-      putMVar workerDone result
+      runWorker accepting workerDone (workerLoop accepting (mergeSenders specSenders specTransceivers) workerReceivers commands)
     pure
       EventLoop
         { eventLoopCommands = commands,
@@ -251,6 +323,22 @@ startEventLoop EventLoopSpec {specSenders, specReceivers} =
           eventLoopWorkerDone = workerDone,
           eventLoopReceivers = receiverHandles
         }
+
+mergeSenders :: Map Text Sender -> Map Text Transceiver -> Map Text Sender
+mergeSenders senders transceivers =
+  Map.union senders (fmap transceiverSender transceivers)
+
+transceiverSender :: Transceiver -> Sender
+transceiverSender (Transceiver socket _) =
+  Sender socket
+
+mergeReceivers :: Map Text Receiver -> Map Text Transceiver -> Map Text Receiver
+mergeReceivers receivers transceivers =
+  Map.union receivers (fmap transceiverReceiver transceivers)
+
+transceiverReceiver :: Transceiver -> Receiver
+transceiverReceiver (Transceiver socket mode) =
+  Receiver socket mode
 
 prepareReceivers :: Map Text Receiver -> IO (Map Text ReceiverHandle, WorkerReceivers)
 prepareReceivers receivers = do
@@ -300,9 +388,19 @@ stopEventLoop EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerD
       Left exception -> throwIO exception
       Right () -> pure ()
 
+-- Worker failure contract: send, receive, poll, and callback exceptions are
+-- captured in 'eventLoopWorkerDone' before the worker closes the accepting
+-- state. Public waiters wake from that state change and then surface the
+-- recorded exception instead of remaining blocked during cleanup.
+runWorker :: TVar Bool -> MVar (Either SomeException ()) -> IO () -> IO ()
+runWorker accepting workerDone action = do
+  result <- try action
+  putMVar workerDone result
+  atomically (writeTVar accepting False)
+
 workerLoop :: TVar Bool -> Map Text Sender -> WorkerReceivers -> TQueue Command -> IO ()
 workerLoop accepting senders workerReceivers commands =
-  loop `finally` atomically (writeTVar accepting False)
+  loop
   where
     loop =
       nextCommand workerReceivers commands >>= \case
@@ -326,10 +424,9 @@ handleCommand accepting senders = \case
     result <- try do
       case Map.lookup endpoint senders of
         Nothing -> pure (Left (missingSenderError endpoint))
-        Just sender -> sendWithSender sender frame
+        Just sender -> sendWithSender accepting sender frame
     case result of
       Left exception -> do
-        atomically (writeTVar accepting False)
         putMVar reply (Left exception)
         throwIO exception
       Right sendResult -> do
@@ -379,14 +476,45 @@ receiveWithReceiver (ReceiverRuntime socket _) =
     Left err -> throwIO err
     Right frames -> pure frames
 
-sendWithSender :: Sender -> ByteString -> IO (Either Error ())
-sendWithSender (Sender socket) =
-  Socket.send_ socket
+sendWithSender :: TVar Bool -> Sender -> ByteString -> IO (Either Error ())
+sendWithSender accepting (Sender socket) frame =
+  case Socket.extra socket of
+    Socket.DealerExtra -> sendWithShutdownAwareSocket accepting socket frame
+    Socket.PairExtra -> sendWithShutdownAwareSocket accepting socket frame
+    Socket.PushExtra -> sendWithShutdownAwareSocket accepting socket frame
+    Socket.ReqExtra _ -> sendWithShutdownAwareSocket accepting socket frame
+    _ -> Socket.send_ socket frame
+
+sendWithShutdownAwareSocket :: TVar Bool -> Socket a -> ByteString -> IO (Either Error ())
+sendWithShutdownAwareSocket accepting socket frame =
+  catchingOkErrors sendLoop >>= \case
+    Left err -> pure (Left err)
+    Right SendCompleted -> pure (Right ())
+    Right SendStopped -> pure (Left (stoppedLoopError "Zmqx.EventLoop.send"))
+  where
+    sendLoop =
+      atomically (readTVar accepting) >>= \case
+        False -> pure SendStopped
+        True ->
+          Socket.sendOneDontWait socket frame False >>= \case
+            True -> pure SendCompleted
+            False -> do
+              threadDelay senderRetrySliceUs
+              sendLoop
+
+senderRetrySliceUs :: Int
+senderRetrySliceUs =
+  1000
+
+data WorkerSendResult
+  = SendCompleted
+  | SendStopped
 
 validateSpecContext :: Context -> EventLoopSpec -> IO ()
-validateSpecContext loopContext EventLoopSpec {specSenders, specReceivers} = do
+validateSpecContext loopContext EventLoopSpec {specSenders, specReceivers, specTransceivers} = do
   traverse_ validateSender (Map.toList specSenders)
   traverse_ validateReceiver (Map.toList specReceivers)
+  traverse_ validateTransceiver (Map.toList specTransceivers)
   where
     validateSender (endpoint, Sender socket) =
       when (Socket.context socket /= loopContext) do
@@ -396,12 +524,19 @@ validateSpecContext loopContext EventLoopSpec {specSenders, specReceivers} = do
       when (Socket.context socket /= loopContext) do
         throwIO (contextMismatchError "receiver" endpoint)
 
+    validateTransceiver (endpoint, Transceiver socket _) =
+      when (Socket.context socket /= loopContext) do
+        throwIO (contextMismatchError "transceiver" endpoint)
+
 -- | Queue a single-frame send command for a registered sender.
 --
--- Public calls never touch registered sender sockets directly. While the loop
--- is running this function writes a command to the worker and waits for the
--- worker's result. Missing sender keys and stopped loops are normal
--- user-visible failures and return 'Left' 'Error'.
+-- Public calls never touch registered sender or transceiver sockets directly.
+-- While the loop is running this function writes a command to the worker and
+-- waits for the worker's result. Sender roles whose underlying socket send may
+-- block are retried by the worker in shutdown-aware slices, so bracket exit can
+-- wake pending 'send' callers with @ETERM@ instead of deadlocking. Missing
+-- sender keys and stopped loops are normal user-visible failures and return
+-- 'Left' 'Error'.
 send :: EventLoop -> Text -> ByteString -> IO (Either Error ())
 send EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerDone} endpoint frame = do
   reply <- newEmptyMVar
@@ -525,9 +660,9 @@ pollSleepUs now deadline =
 
 stoppedResult :: Text -> MVar (Either SomeException ()) -> IO (Either Error a)
 stoppedResult functionName workerDone =
-  tryReadMVar workerDone >>= \case
-    Just (Left exception) -> throwIO exception
-    _ -> pure (Left (stoppedLoopError functionName))
+  readMVar workerDone >>= \case
+    Left exception -> throwIO exception
+    Right () -> pure (Left (stoppedLoopError functionName))
 
 missingSenderError :: Text -> Error
 missingSenderError endpoint =
@@ -567,6 +702,16 @@ contextMismatchError role endpoint =
     { function = "Zmqx.EventLoop.withEventLoop",
       errno = EINVAL,
       description = "event loop " <> role <> " belongs to a different context: " <> endpoint
+    }
+
+duplicateEndpointNameError :: Set Text -> Error
+duplicateEndpointNameError endpoints =
+  Error
+    { function = "Zmqx.EventLoop.withEventLoop",
+      errno = EINVAL,
+      description =
+        "event loop endpoint name registered more than once: "
+          <> Text.intercalate ", " (Set.toAscList endpoints)
     }
 
 invalidMailboxCapacityError :: Text -> Int -> Error

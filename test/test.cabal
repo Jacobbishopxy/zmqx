@@ -258,6 +258,12 @@ test-suite test-req-poll
   main-is:       ReqPoll.hs
   build-depends: bytestring
 
+test-suite test-req-poll-probe-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       ReqPollProbeAuto.hs
+  build-depends: bytestring
+
 test-suite test-receive-path-auto
   import:        test-properties
   type:          exitcode-stdio-1.0

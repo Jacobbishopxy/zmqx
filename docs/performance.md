@@ -18,10 +18,11 @@ The executable emits one `key=value` summary line per scenario. All scenarios us
 | `multipart` | Multipart send and receive allocation/copy overhead | `--messages`, `--payload-bytes`, `--frames` |
 | `poll` | Poll-set scaling across multiple `PULL` sockets | `--messages`, `--payload-bytes`, `--sockets`, `--timeout-ms` |
 | `req-poll` | `REQ` timeout/probe behavior through `receivesFor` | `--messages`, `--payload-bytes`, `--timeout-ms` |
+| `req-poll-idle` | Idle `REQ` input `pollFor` timeout/probe behavior with a ROUTER peer that does not reply | `--messages`, `--payload-bytes`, `--timeout-ms` |
 | `event-loop` | EventLoop mailbox/transceiver send/receive latency | `--messages`, `--payload-bytes`, `--frames`, `--timeout-ms` |
 | `lifecycle` | Socket open/finalizer/context cleanup churn | `--messages` |
 
-Use `--scenario all` (the default) to run the whole smoke matrix.
+Use `--scenario all` (the default) to run the standard smoke matrix. The timeout-dominated `req-poll-idle` scenario is intentionally explicit-only so default/all runs do not spend `messages * timeout-ms` waiting for idle timeouts.
 
 ## Example commands
 
@@ -43,6 +44,13 @@ Larger trend/regression run for one scenario:
 ```sh
 cabal run --enable-optimization=2 zmqx-overheads -- \
   --scenario poll --messages 10000 --warmup 100 --sockets 32 --payload-bytes 64 +RTS -s
+```
+
+REQ idle poll/probe smoke with a short timeout:
+
+```sh
+cabal run --enable-optimization=2 zmqx-overheads -- \
+  --scenario req-poll-idle --messages 10 --warmup 1 --timeout-ms 10 --payload-bytes 64 +RTS -s
 ```
 
 ## Output fields

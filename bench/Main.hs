@@ -28,6 +28,7 @@ import Zmqx.Pull qualified
 import Zmqx.Push qualified
 import Zmqx.Rep qualified
 import Zmqx.Req qualified
+import Zmqx.Router qualified
 
 
 data Scenario
@@ -36,6 +37,7 @@ data Scenario
   | ScenarioMultipart
   | ScenarioPoll
   | ScenarioReqPoll
+  | ScenarioReqPollIdle
   | ScenarioEventLoop
   | ScenarioLifecycle
   deriving stock (Eq, Show)
@@ -159,6 +161,7 @@ parseScenario = \case
   "multipart" -> Right ScenarioMultipart
   "poll" -> Right ScenarioPoll
   "req-poll" -> Right ScenarioReqPoll
+  "req-poll-idle" -> Right ScenarioReqPollIdle
   "event-loop" -> Right ScenarioEventLoop
   "lifecycle" -> Right ScenarioLifecycle
   other -> Left ("unknown scenario: " <> other)
@@ -192,7 +195,7 @@ helpText =
       "  cabal run zmqx-overheads -- [OPTIONS]",
       "",
       "Options:",
-      "  --scenario NAME        all, direct, multipart, poll, req-poll, event-loop, lifecycle (default: all)",
+      "  --scenario NAME        all, direct, multipart, poll, req-poll, req-poll-idle, event-loop, lifecycle (default: all)",
       "  --messages N          Messages or lifecycle iterations per scenario (default: 1000)",
       "  --payload-bytes N     Payload bytes per frame (default: 64)",
       "  --frames N            Multipart frame count (default: 3)",
@@ -234,6 +237,7 @@ runScenario cli = \case
   ScenarioMultipart -> runMultipart cli
   ScenarioPoll -> runPoll cli
   ScenarioReqPoll -> runReqPoll cli
+  ScenarioReqPollIdle -> runReqPollIdle cli
   ScenarioEventLoop -> runEventLoop cli
   ScenarioLifecycle -> runLifecycle cli
 
@@ -374,6 +378,41 @@ runReqPoll Cli {..} =
           summaryElapsed = elapsed,
           summaryLatency = latencySummary latencies,
           summaryExtra = [("receive_timeout_ms", show cliTimeoutMs)]
+        }
+
+runReqPollIdle :: Cli -> IO Summary
+runReqPollIdle Cli {..} =
+  Zmqx.run Zmqx.defaultOptions do
+    endpoint <- uniqueEndpoint "req-poll-idle"
+    router <- Zmqx.Router.open Zmqx.Router.defaultOptions >>= unwrap
+    req <- Zmqx.Req.open Zmqx.Req.defaultOptions >>= unwrap
+    Zmqx.bind router endpoint >>= unwrap
+    Zmqx.connect req endpoint >>= unwrap
+    awaitConnection
+
+    let frame = payload cliPayloadBytes
+        iteration _index = do
+          Zmqx.send req frame >>= unwrap
+          routed <- Zmqx.receives router >>= unwrap
+          unless (frame `elem` routed) (throwIO (userError "REQ idle poll scenario ROUTER received an unexpected request"))
+          Zmqx.pollFor (Zmqx.pollIn req) cliTimeoutMs >>= \case
+            Right Nothing -> pure ()
+            Right (Just (Zmqx.Ready ready)) ->
+              unless (not (ready req)) (throwIO (userError "REQ idle poll scenario unexpectedly reported the REQ ready"))
+            Left err -> throwIO err
+
+    warmup cliWarmup (iteration 0)
+    (elapsed, latencies) <- measureLatencyLoop cliMessages iteration
+    pure
+      Summary
+        { summaryScenario = "req-poll-idle",
+          summaryPayloadBytes = cliPayloadBytes,
+          summaryFrames = 1,
+          summarySockets = 2,
+          summaryMessages = cliMessages,
+          summaryElapsed = elapsed,
+          summaryLatency = latencySummary latencies,
+          summaryExtra = [("poll_timeout_ms", show cliTimeoutMs)]
         }
 
 runEventLoop :: Cli -> IO Summary

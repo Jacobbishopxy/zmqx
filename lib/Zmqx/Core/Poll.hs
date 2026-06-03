@@ -17,7 +17,6 @@ module Zmqx.Core.Poll
   )
 where
 
-import Control.Concurrent (threadDelay)
 import Control.Exception
 import Data.Functor ((<&>))
 import Data.Int (Int64)
@@ -89,13 +88,15 @@ data Sockets
         socketList :: ![SocketToPoll],
         -- number of sockets in the list
         socketCount :: !Int,
-        -- Sockets that should be passed to libzmq. Input REQ sockets are deliberately excluded and probed directly.
+        -- Sockets passed to libzmq. Input REQ sockets are included as wakeup candidates, but input REQ revents are
+        -- validated by a nonblocking receive probe before the socket is reported ready.
         pollableSockets :: !(Primitive.Array SocketToPoll),
         -- Immutable pollitem template corresponding to `pollableSockets`; copied into a reusable stack buffer before
         -- each zmq_poll call so `revents` starts clear without allocating a StorableArray per poll.
         pollitemTemplates :: !(Primitive.Array Zmq_pollitem),
         pollableCount :: !Int,
-        -- Input REQ sockets are handled outside zmq_poll to avoid stale/correlated reply readiness from libzmq.
+        -- Input REQ sockets are tracked separately so buffered replies can make a poll ready even after the reply was
+        -- moved out of libzmq and into the REQ buffer by an earlier probe.
         inputREQSockets :: !(Primitive.Array SomeSocket),
         inputREQCount :: !Int
       }
@@ -141,10 +142,12 @@ partitionSocketList =
   where
     go !pollableAcc !inputREQAcc = \case
       [] -> (reverse pollableAcc, reverse inputREQAcc)
-      socketToPoll'@SocketToPoll {pollSocket = someSocket@(SomeSocket socket), pollEvent} : remainingSockets ->
-        case (pollEventIsInput pollEvent, extra socket) of
-          (True, Socket.ReqExtra _) -> go pollableAcc (someSocket : inputREQAcc) remainingSockets
-          _ -> go (socketToPoll' : pollableAcc) inputREQAcc remainingSockets
+      socketToPoll'@SocketToPoll {pollSocket = someSocket} : remainingSockets ->
+        let inputREQAcc' =
+              if socketToPollRequiresInputREQProbe socketToPoll'
+                then someSocket : inputREQAcc
+                else inputREQAcc
+         in go (socketToPoll' : pollableAcc) inputREQAcc' remainingSockets
 
 data Ready
   = Ready (forall a. Socket a -> Bool)
@@ -180,6 +183,13 @@ pollEventIsInput = \case
   PollIn -> True
   PollOut -> False
 
+socketToPollRequiresInputREQProbe :: SocketToPoll -> Bool
+socketToPollRequiresInputREQProbe SocketToPoll {pollSocket = SomeSocket socket, pollEvent} =
+  pollEventIsInput pollEvent
+    && case extra socket of
+      Socket.ReqExtra _ -> True
+      _ -> False
+
 ------------------------------------------------------------------------------------------------------------------------
 -- Prepared poll buffers and REQ probing
 
@@ -201,23 +211,51 @@ resetPollItems Sockets {pollitemTemplates, pollableCount} pollitemsPtr =
           pokeElemOff pollitemsPtr index (Primitive.Array.indexArray pollitemTemplates index)
           loop (index + 1)
 
-getReadySocketIds :: Primitive.Array SocketToPoll -> Int -> Ptr Zmq_pollitem -> IO IntSet
-getReadySocketIds socketsToPoll socketsToPollCount pollitemsPtr =
+getBufferedInputREQSocketIds :: Sockets -> IO IntSet
+getBufferedInputREQSocketIds Sockets {inputREQSockets, inputREQCount} =
   loop IntSet.empty 0
   where
     loop !acc !index
-      | index >= socketsToPollCount = pure acc
+      | index >= inputREQCount = pure acc
+      | otherwise = do
+          acc' <- getBufferedInputREQSocketId acc (Primitive.Array.indexArray inputREQSockets index)
+          loop acc' (index + 1)
+
+getBufferedInputREQSocketId :: IntSet -> SomeSocket -> IO IntSet
+getBufferedInputREQSocketId acc someSocket@(SomeSocket socket) =
+  case extra socket of
+    Socket.ReqExtra messageBuffer ->
+      readIORef messageBuffer >>= \case
+        Just _ -> pure (IntSet.insert (someSocketReadyId someSocket) acc)
+        Nothing -> pure acc
+    _ -> pure acc
+
+collectReadySocketIds :: Primitive.Array SocketToPoll -> Int -> Ptr Zmq_pollitem -> IntSet -> IO (IntSet, Bool)
+collectReadySocketIds socketsToPoll socketsToPollCount pollitemsPtr initialReady =
+  loop initialReady False 0
+  where
+    loop !acc !sawInvalidREQWakeup !index
+      | index >= socketsToPollCount = pure (acc, sawInvalidREQWakeup)
       | otherwise = do
           pollitem <- peekElemOff pollitemsPtr index
           if Zmqx.Internal.Bindings.revents pollitem == 0
-            then loop acc (index + 1)
-            else
-              let readySocket = pollSocket (Primitive.Array.indexArray socketsToPoll index)
-               in loop (IntSet.insert (someSocketReadyId readySocket) acc) (index + 1)
+            then loop acc sawInvalidREQWakeup (index + 1)
+            else do
+              let socketToPoll' = Primitive.Array.indexArray socketsToPoll index
+                  readySocket = pollSocket socketToPoll'
+              if socketToPollRequiresInputREQProbe socketToPoll'
+                then do
+                  let readyId = someSocketReadyId readySocket
+                      wasReady = readyId `IntSet.member` acc
+                  acc' <- probeReadyInputREQSocket acc readySocket
+                  let isReady = readyId `IntSet.member` acc'
+                  loop acc' (sawInvalidREQWakeup || (not wasReady && not isReady)) (index + 1)
+                else
+                  loop (IntSet.insert (someSocketReadyId readySocket) acc) sawInvalidREQWakeup (index + 1)
 
-probeReadyInputREQSockets :: Sockets -> IO IntSet
-probeReadyInputREQSockets Sockets {inputREQSockets, inputREQCount} =
-  loop IntSet.empty 0
+probeReadyInputREQSockets :: Sockets -> IntSet -> IO IntSet
+probeReadyInputREQSockets Sockets {inputREQSockets, inputREQCount} initialReady =
+  loop initialReady 0
   where
     loop !acc !index
       | index >= inputREQCount = pure acc
@@ -242,7 +280,7 @@ probeReadyInputREQSocket acc someSocket@(SomeSocket socket) =
             `catch` \case
               Error {errno = EFSM} -> pure acc
               err -> throwIO err
-    _ -> pure (IntSet.insert (someSocketReadyId someSocket) acc)
+    _ -> pure acc
 
 ------------------------------------------------------------------------------------------------------------------------
 -- Polling
@@ -274,41 +312,22 @@ poll_ sockets@Sockets {pollableCount, inputREQCount} maybeDeadline =
   catchingOkErrors do
     if pollableCount == 0
       then loopWithoutPollItems
-      else withPollItems sockets loopWithPollItems
+      else withPollItems sockets (loopWithPollItems hasInputREQs)
   where
     hasInputREQs :: Bool
     hasInputREQs = inputREQCount > 0
 
-    reqProbeSliceUs :: Int
-    reqProbeSliceUs = 10_000
-
     reqProbeSliceMs :: Int64
-    reqProbeSliceMs = fromIntegral (reqProbeSliceUs `div` 1000)
+    reqProbeSliceMs = 10
 
-    waitBeforeRetry :: Maybe Word64 -> IO Bool
-    waitBeforeRetry =
-      \case
-        Nothing -> do
-          threadDelay reqProbeSliceUs
-          pure True
-        Just deadline -> do
-          now <- getMonotonicTimeNSec
-          if now >= deadline
-            then pure False
-            else do
-              let remainingUs =
-                    fromIntegral @Word64 @Int (((deadline - now - 1) `div` 1000) + 1)
-              threadDelay (min reqProbeSliceUs remainingUs)
-              pure True
-
-    pollTimeout :: IntSet -> IO Int64
-    pollTimeout reqReady
+    pollTimeout :: Bool -> IntSet -> IO Int64
+    pollTimeout forceProbeCadence reqReady
       | not (IntSet.null reqReady) = pure 0
       | otherwise =
           case maybeDeadline of
             Nothing ->
               pure
-                if hasInputREQs
+                if forceProbeCadence && hasInputREQs
                   then reqProbeSliceMs
                   else -1
             Just deadline -> do
@@ -318,7 +337,7 @@ poll_ sockets@Sockets {pollableCount, inputREQCount} maybeDeadline =
                   then 0
                   else -- safe downcast: can't overflow Int64 after dividing by 1,000,000
                     let remainingMs = fromIntegral @Word64 @Int64 (((deadline - now - 1) `div` 1_000_000) + 1)
-                     in if hasInputREQs
+                     in if forceProbeCadence && hasInputREQs
                           then min remainingMs reqProbeSliceMs
                           else remainingMs
 
@@ -334,34 +353,27 @@ poll_ sockets@Sockets {pollableCount, inputREQCount} maybeDeadline =
 
     loopWithoutPollItems :: IO (Maybe Ready)
     loopWithoutPollItems = do
-      reqReady <- probeReadyInputREQSockets sockets
+      reqReady <- getBufferedInputREQSocketIds sockets
       if IntSet.null reqReady
-        then
-          waitBeforeRetry maybeDeadline >>= \case
-            False -> pure Nothing
-            True -> loopWithoutPollItems
+        then pure Nothing
         else ready1 reqReady
 
-    loopWithPollItems :: Ptr Zmq_pollitem -> IO (Maybe Ready)
-    loopWithPollItems pollitemsPtr = do
-      reqReadyBefore <- probeReadyInputREQSockets sockets
-      timeout <- pollTimeout reqReadyBefore
+    loopWithPollItems :: Bool -> Ptr Zmq_pollitem -> IO (Maybe Ready)
+    loopWithPollItems forceProbeCadence pollitemsPtr = do
+      bufferedREQReady <- getBufferedInputREQSocketIds sockets
+      timeout <- pollTimeout forceProbeCadence bufferedREQReady
       keepAlive (pollableSockets sockets) do
         resetPollItems sockets pollitemsPtr
-        numOstensiblyReadySockets <- zhs_poll_ptr pollitemsPtr pollableCount timeout
-        reqReadyAfter <- probeReadyInputREQSockets sockets
-        let reqReady = IntSet.union reqReadyBefore reqReadyAfter
-        if numOstensiblyReadySockets == 0
-          then
-            if not (IntSet.null reqReady)
-              then ready1 reqReady
-              else retryOrTimeout (loopWithPollItems pollitemsPtr)
-          else do
-            ostensiblyReadySockets <- getReadySocketIds (pollableSockets sockets) pollableCount pollitemsPtr
-            let readySockets = IntSet.union reqReady ostensiblyReadySockets
-            if IntSet.null readySockets
-              then loopWithPollItems pollitemsPtr
-              else ready1 readySockets
+        _numOstensiblyReadySockets <- zhs_poll_ptr pollitemsPtr pollableCount timeout
+        (readyAfterRevents, invalidREQWakeup) <-
+          collectReadySocketIds (pollableSockets sockets) pollableCount pollitemsPtr bufferedREQReady
+        readySockets <-
+          if forceProbeCadence && hasInputREQs && IntSet.null readyAfterRevents
+            then probeReadyInputREQSockets sockets readyAfterRevents
+            else pure readyAfterRevents
+        if IntSet.null readySockets
+          then retryOrTimeout (loopWithPollItems (forceProbeCadence || invalidREQWakeup) pollitemsPtr)
+          else ready1 readySockets
 
     ready1 :: IntSet -> IO (Maybe Ready)
     ready1 ss =

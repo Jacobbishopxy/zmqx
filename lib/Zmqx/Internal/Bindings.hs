@@ -26,6 +26,7 @@ module Zmqx.Internal.Bindings
     zmq_msg_send__unsafe,
     zmq_msg_recv,
     zmq_msg_recv__unsafe,
+    zmqx_msg_recv_errno,
     zmq_msg_close,
     zmq_msg_move,
     zmq_msg_copy,

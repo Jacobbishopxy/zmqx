@@ -144,6 +144,10 @@ foreign import capi interruptible "zmq.h zmq_msg_recv"
 foreign import capi unsafe "zmq.h zmq_msg_recv"
   zmq_msg_recv__unsafe :: Ptr Zmq_msg -> Ptr socket -> CInt -> IO CInt
 
+-- | Receive a ØMQ message and return negative errno on failure (unsafe FFI).
+foreign import capi unsafe "zmq-wrapper.h zmqx_msg_recv_errno"
+  zmqx_msg_recv_errno :: Ptr Zmq_msg -> Ptr socket -> CInt -> IO CInt
+
 -- | Send a ØMQ message on a ØMQ socket.
 --
 -- http://api.zeromq.org/master:zmq-msg-send

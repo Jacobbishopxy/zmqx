@@ -9,3 +9,13 @@
 void zmq_atomic_counter_destroy_wrapper (void* counter) {
   zmq_atomic_counter_destroy(&counter);
 }
+
+// Call zmq_msg_recv and return negative errno when libzmq reports failure.
+// This keeps expected non-blocking EAGAIN paths to one Haskell FFI crossing.
+int zmqx_msg_recv_errno (zmq_msg_t* msg, void* socket, int flags) {
+  int result = zmq_msg_recv(msg, socket, flags);
+  if (result == -1) {
+    return -zmq_errno();
+  }
+  return result;
+}

@@ -276,8 +276,8 @@ zmq_msg_recv (Zmq_msg message) (Zmq_socket socket) =
 -- http://api.zeromq.org/master:zmq-msg-recv
 zmq_msg_recv_dontwait :: Zmq_msg -> Zmq_socket -> IO (Either Zmq_error Int)
 zmq_msg_recv_dontwait (Zmq_msg message) (Zmq_socket socket) =
-  Zmqx.Internal.Bindings.zmq_msg_recv__unsafe message socket Zmqx.Internal.Bindings.ZMQ_DONTWAIT >>= \case
-    -1 -> Left <$> zmq_errno
+  Zmqx.Internal.Bindings.zmqx_msg_recv_errno message socket Zmqx.Internal.Bindings.ZMQ_DONTWAIT >>= \case
+    n | n < 0 -> pure (Left (Zmq_error (negate n)))
     n -> pure (Right (fromIntegral @CInt @Int n))
 
 -- | Send a ØMQ message on a ØMQ socket.

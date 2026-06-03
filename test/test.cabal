@@ -270,6 +270,12 @@ test-suite test-receive-path-auto
   main-is:       ReceivePathAuto.hs
   build-depends: bytestring
 
+test-suite test-blocking-backpressure-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       BlockingBackpressureAuto.hs
+  build-depends: bytestring
+
 ------------------------------------------------------------------------------------------------
 -- ContextualOpen coverage
 

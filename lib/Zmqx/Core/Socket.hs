@@ -66,7 +66,7 @@ import System.Posix.Types (Fd (..))
 import Zmqx.Core.Context (Context (..), RunError (..), globalContextRef, globalSocketFinalizersRef)
 import Zmqx.Core.IO (keepAlive)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.SocketFinalizer (makeSocketFinalizer)
+import Zmqx.Core.SocketFinalizer (makeSocketFinalizer, registerSocketFinalizer)
 import Zmqx.Error (Error, catchingOkErrors, enrichError, throwOkError, unexpectedError)
 import Zmqx.Internal
 import Zmqx.Internal.Bindings qualified
@@ -141,7 +141,7 @@ openSocketIn Context {contextPtr, contextFinalizers} socketType options extra = 
     mask_ do
       zsocket <- zhs_socket contextPtr socketType
       finalizer <- makeSocketFinalizer (zmq_close zsocket) contextFinalizers canary#
-      atomicModifyIORef' contextFinalizers \finalizers -> (finalizer : finalizers, ())
+      registerSocketFinalizer contextFinalizers finalizer
       pure zsocket
   Options.setSocketOptions zsocket options
   pure

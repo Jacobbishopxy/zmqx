@@ -3,14 +3,20 @@
 
 module Zmqx.Core.SocketFinalizer
   ( SocketFinalizer,
-    makeSocketFinalizer,
+    SocketFinalizerRegistry,
     compactSocketFinalizers,
+    makeSocketFinalizer,
+    newSocketFinalizerRegistry,
+    pendingSocketFinalizers,
+    registeredSocketFinalizers,
+    registerSocketFinalizer,
+    resetSocketFinalizerRegistry,
     runSocketFinalizer,
   )
 where
 
 import Control.Exception (mask, onException)
-import Control.Monad (filterM)
+import Control.Monad (filterM, when)
 import Data.Functor (void)
 import Data.IORef
 import GHC.Base (mkWeak#)
@@ -18,6 +24,30 @@ import GHC.Exts (TYPE, UnliftedRep)
 import GHC.IO (IO (..), unIO)
 import GHC.Weak (Weak (..))
 import Zmqx.Internal (Zmq_error)
+
+-- | A per-context registry for socket finalizers.
+--
+-- The registry keeps an exact count of close actions that have not completed yet.
+-- Closed entries are compacted lazily so weak finalizers and diagnostic counts do
+-- not scan the whole registry on every socket churn event.
+data SocketFinalizerRegistry = SocketFinalizerRegistry
+  { socketFinalizerRegistryState :: !(IORef SocketFinalizerRegistryState)
+  }
+  deriving stock (Eq)
+
+data SocketFinalizerRegistryState = SocketFinalizerRegistryState
+  { socketFinalizerRegistryFinalizers :: ![SocketFinalizer],
+    socketFinalizerRegistryPendingCount :: !Int,
+    socketFinalizerRegistryStaleCount :: !Int
+  }
+
+emptySocketFinalizerRegistryState :: SocketFinalizerRegistryState
+emptySocketFinalizerRegistryState =
+  SocketFinalizerRegistryState
+    { socketFinalizerRegistryFinalizers = [],
+      socketFinalizerRegistryPendingCount = 0,
+      socketFinalizerRegistryStaleCount = 0
+    }
 
 -- | A socket finalizer is a weak reference to an idempotent linger+close action.
 --
@@ -29,16 +59,42 @@ data SocketFinalizer = SocketFinalizer
     socketFinalizerClosed :: !(IORef Bool)
   }
 
+newSocketFinalizerRegistry :: IO SocketFinalizerRegistry
+newSocketFinalizerRegistry =
+  SocketFinalizerRegistry <$> newIORef emptySocketFinalizerRegistryState
+
+resetSocketFinalizerRegistry :: SocketFinalizerRegistry -> IO ()
+resetSocketFinalizerRegistry SocketFinalizerRegistry {socketFinalizerRegistryState} =
+  atomicWriteIORef socketFinalizerRegistryState emptySocketFinalizerRegistryState
+
+registerSocketFinalizer :: SocketFinalizerRegistry -> SocketFinalizer -> IO ()
+registerSocketFinalizer SocketFinalizerRegistry {socketFinalizerRegistryState} finalizer =
+  atomicModifyIORef' socketFinalizerRegistryState \registryState ->
+    ( registryState
+        { socketFinalizerRegistryFinalizers = finalizer : socketFinalizerRegistryFinalizers registryState,
+          socketFinalizerRegistryPendingCount = socketFinalizerRegistryPendingCount registryState + 1
+        },
+      ()
+    )
+
+pendingSocketFinalizers :: SocketFinalizerRegistry -> IO Int
+pendingSocketFinalizers SocketFinalizerRegistry {socketFinalizerRegistryState} =
+  socketFinalizerRegistryPendingCount <$> readIORef socketFinalizerRegistryState
+
+registeredSocketFinalizers :: SocketFinalizerRegistry -> IO [SocketFinalizer]
+registeredSocketFinalizers SocketFinalizerRegistry {socketFinalizerRegistryState} =
+  socketFinalizerRegistryFinalizers <$> readIORef socketFinalizerRegistryState
+
 makeSocketFinalizer ::
   forall (canary# :: TYPE UnliftedRep).
   -- zmq_close
   IO (Either Zmq_error ()) ->
-  IORef [SocketFinalizer] ->
+  SocketFinalizerRegistry ->
   canary# ->
   IO SocketFinalizer
-makeSocketFinalizer close finalizersRef canary# = do
-  (idempotentClose, closedRef) <- makeIdempotent (void close)
-  weak <- makeWeakPointer canary# () (idempotentClose >> compactSocketFinalizers finalizersRef)
+makeSocketFinalizer close registry canary# = do
+  (idempotentClose, closedRef) <- makeIdempotent (void close) (markSocketFinalizerClosed registry)
+  weak <- makeWeakPointer canary# () (idempotentClose >> compactSocketFinalizersWhenStale registry)
   pure
     SocketFinalizer
       { weakSocketFinalizer = weak,
@@ -52,23 +108,65 @@ makeWeakPointer key# value finalizer =
     case mkWeak# key# value (unIO finalizer) s0 of
       (# s1, weak #) -> (# s1, Weak weak #)
 
-compactSocketFinalizers :: IORef [SocketFinalizer] -> IO ()
-compactSocketFinalizers finalizersRef =
+compactSocketFinalizersWhenStale :: SocketFinalizerRegistry -> IO ()
+compactSocketFinalizersWhenStale registry@SocketFinalizerRegistry {socketFinalizerRegistryState} = do
+  shouldCompact <- socketFinalizerRegistryShouldCompact <$> readIORef socketFinalizerRegistryState
+  when shouldCompact (compactSocketFinalizers registry)
+
+socketFinalizerRegistryCompactionThreshold :: Int
+socketFinalizerRegistryCompactionThreshold = 64
+
+socketFinalizerRegistryShouldCompact :: SocketFinalizerRegistryState -> Bool
+socketFinalizerRegistryShouldCompact SocketFinalizerRegistryState {socketFinalizerRegistryPendingCount, socketFinalizerRegistryStaleCount} =
+  socketFinalizerRegistryStaleCount >= socketFinalizerRegistryCompactionThreshold
+    && socketFinalizerRegistryStaleCount >= socketFinalizerRegistryPendingCount
+
+markSocketFinalizerClosed :: SocketFinalizerRegistry -> IO ()
+markSocketFinalizerClosed SocketFinalizerRegistry {socketFinalizerRegistryState} =
+  atomicModifyIORef' socketFinalizerRegistryState \registryState ->
+    ( registryState
+        { socketFinalizerRegistryPendingCount = max 0 (socketFinalizerRegistryPendingCount registryState - 1),
+          socketFinalizerRegistryStaleCount = socketFinalizerRegistryStaleCount registryState + 1
+        },
+      ()
+    )
+
+compactSocketFinalizers :: SocketFinalizerRegistry -> IO ()
+compactSocketFinalizers SocketFinalizerRegistry {socketFinalizerRegistryState} =
   mask \restore -> do
-    snapshot <- atomicModifyIORef' finalizersRef \finalizers -> ([], finalizers)
+    snapshot <-
+      atomicModifyIORef' socketFinalizerRegistryState \registryState ->
+        ( registryState {socketFinalizerRegistryFinalizers = []},
+          socketFinalizerRegistryFinalizers registryState
+        )
     let restoreSnapshot =
-          atomicModifyIORef' finalizersRef \newerFinalizers -> (newerFinalizers ++ snapshot, ())
+          atomicModifyIORef' socketFinalizerRegistryState \newerRegistryState ->
+            ( newerRegistryState
+                { socketFinalizerRegistryFinalizers =
+                    socketFinalizerRegistryFinalizers newerRegistryState ++ snapshot
+                },
+              ()
+            )
     liveFinalizers <-
       restore (filterM isSocketFinalizerAlive snapshot)
         `onException` restoreSnapshot
-    atomicModifyIORef' finalizersRef \newerFinalizers -> (newerFinalizers ++ liveFinalizers, ())
+    let removedCount = length snapshot - length liveFinalizers
+    atomicModifyIORef' socketFinalizerRegistryState \newerRegistryState ->
+      ( newerRegistryState
+          { socketFinalizerRegistryFinalizers =
+              socketFinalizerRegistryFinalizers newerRegistryState ++ liveFinalizers,
+            socketFinalizerRegistryStaleCount =
+              max 0 (socketFinalizerRegistryStaleCount newerRegistryState - removedCount)
+          },
+        ()
+      )
 
 isSocketFinalizerAlive :: SocketFinalizer -> IO Bool
 isSocketFinalizerAlive SocketFinalizer {socketFinalizerClosed} =
   not <$> readIORef socketFinalizerClosed
 
-makeIdempotent :: IO () -> IO (IO (), IORef Bool)
-makeIdempotent action = do
+makeIdempotent :: IO () -> IO () -> IO (IO (), IORef Bool)
+makeIdempotent action onClose = do
   hasRunRef <- newIORef False
   closedRef <- newIORef False
   let runOnce = do
@@ -81,5 +179,6 @@ makeIdempotent action = do
           then do
             action
             writeIORef closedRef True
+            onClose
           else pure ()
   pure (runOnce, closedRef)

@@ -360,6 +360,11 @@ test-suite test-finalizer-registry
   type:    exitcode-stdio-1.0
   main-is: FinalizerRegistry.hs
 
+test-suite test-finalizer-scaling-auto
+  import:  test-properties
+  type:    exitcode-stdio-1.0
+  main-is: FinalizerScalingAuto.hs
+
 test-suite test-zmqxt
   import:  test-properties
   type:    exitcode-stdio-1.0

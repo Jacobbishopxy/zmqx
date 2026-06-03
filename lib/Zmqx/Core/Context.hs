@@ -25,7 +25,15 @@ import Data.IORef
 import System.IO.Unsafe (unsafePerformIO)
 import Zmqx.Core.Options (Options)
 import Zmqx.Core.Options qualified as Options
-import Zmqx.Core.SocketFinalizer (SocketFinalizer, compactSocketFinalizers, runSocketFinalizer)
+import Zmqx.Core.SocketFinalizer
+  ( SocketFinalizerRegistry,
+    compactSocketFinalizers,
+    newSocketFinalizerRegistry,
+    pendingSocketFinalizers,
+    registeredSocketFinalizers,
+    resetSocketFinalizerRegistry,
+    runSocketFinalizer,
+  )
 import Zmqx.Error (Error, enrichError, unexpectedError)
 import Zmqx.Internal
 
@@ -45,7 +53,7 @@ instance Exception RunError where
 -- multiple contexts or avoid global state while keeping the existing API intact.
 data Context = Context
   { contextPtr :: !Zmq_ctx,
-    contextFinalizers :: !(IORef [SocketFinalizer])
+    contextFinalizers :: !SocketFinalizerRegistry
   }
   deriving stock (Eq)
 
@@ -70,9 +78,9 @@ globalRunLock =
 -- This design allows us to acquire sockets with straight-line syntax, rather than incur a syntactic indent due to
 -- bracketing a resource acquire/release.
 --
-globalSocketFinalizersRef :: IORef [SocketFinalizer]
+globalSocketFinalizersRef :: SocketFinalizerRegistry
 globalSocketFinalizersRef =
-  unsafePerformIO (newIORef [])
+  unsafePerformIO newSocketFinalizerRegistry
 {-# NOINLINE globalSocketFinalizersRef #-}
 
 -- | Run a main function.
@@ -95,7 +103,7 @@ run options action =
   where
     initializeContext opts =
       mask_ do
-        atomicWriteIORef globalSocketFinalizersRef []
+        resetSocketFinalizerRegistry globalSocketFinalizersRef
         context <- newContext opts
         atomicWriteIORef globalContextRef (Just context)
         pure context
@@ -104,7 +112,7 @@ run options action =
       uninterruptibleMask_ $
         terminateContext globalSocketFinalizersRef context
           `finally` do
-            atomicWriteIORef globalSocketFinalizersRef []
+            resetSocketFinalizerRegistry globalSocketFinalizersRef
             atomicWriteIORef globalContextRef Nothing
 
 -- | Run an action with an explicit context handle, without touching global state.
@@ -129,27 +137,27 @@ withContext options action =
           contextFinalizers = socketFinalizers
         }
   where
-    initializeContext :: Options () -> IO (Zmq_ctx, IORef [SocketFinalizer])
+    initializeContext :: Options () -> IO (Zmq_ctx, SocketFinalizerRegistry)
     initializeContext opts = do
-      socketFinalizers <- newIORef []
+      socketFinalizers <- newSocketFinalizerRegistry
       context <- newContext opts
       pure (context, socketFinalizers)
 
-    cleanupContext :: (Zmq_ctx, IORef [SocketFinalizer]) -> IO ()
+    cleanupContext :: (Zmq_ctx, SocketFinalizerRegistry) -> IO ()
     cleanupContext (context, socketFinalizers) =
       uninterruptibleMask_ $
         terminateContext socketFinalizers context
 
 -- | Return the number of sockets that would still require teardown work for this context.
 --
--- This is an opt-in diagnostic helper. It compacts dead or already-closed finalizers before
--- counting, so a non-zero result means there are still registered sockets whose close action
--- has not completed yet. Treat the result as advisory diagnostics, not as an exact live-socket
--- census. The helper itself does not keep sockets alive.
+-- This is an opt-in diagnostic helper. The registry maintains this count as socket close
+-- actions complete, so a non-zero result means there are still registered sockets whose close
+-- action has not completed yet. Treat the result as advisory diagnostics, not as an exact
+-- live-socket census. The helper itself does not keep sockets alive and no longer forces a
+-- full registry compaction on every call.
 pendingSockets :: Context -> IO Int
-pendingSockets Context {contextFinalizers} = do
-  compactSocketFinalizers contextFinalizers
-  length <$> readIORef contextFinalizers
+pendingSockets Context {contextFinalizers} =
+  pendingSocketFinalizers contextFinalizers
 
 withRunGuard :: IO a -> IO a
 withRunGuard =
@@ -179,7 +187,7 @@ newContext options = do
 -- that would weaken the main API's lifetime guarantees. This also means callers must stop any
 -- child threads that still use sockets from this context before teardown, or termination may
 -- block waiting for those sockets to be released.
-terminateContext :: IORef [SocketFinalizer] -> Zmq_ctx -> IO ()
+terminateContext :: SocketFinalizerRegistry -> Zmq_ctx -> IO ()
 terminateContext socketFinalizers context = do
   -- Shut down the context, causing any blocking operations on sockets to return ETERM
   zmq_ctx_shutdown context >>= \case
@@ -193,9 +201,9 @@ terminateContext socketFinalizers context = do
   -- Close all of the open sockets
   -- Why reverse: close in the order they were acquired :shrug:
   compactSocketFinalizers socketFinalizers
-  finalizers <- readIORef socketFinalizers
+  finalizers <- registeredSocketFinalizers socketFinalizers
   for_ (reverse finalizers) runSocketFinalizer
-  atomicWriteIORef socketFinalizers []
+  resetSocketFinalizerRegistry socketFinalizers
 
   -- Terminate the context
   let loop maybeErr =

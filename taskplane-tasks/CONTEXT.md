@@ -1,8 +1,8 @@
 # General — Context
 
-**Last Updated:** 2026-06-02
+**Last Updated:** 2026-06-03
 **Status:** Active
-**Next Task ID:** TP-006
+**Next Task ID:** TP-015
 
 ---
 
@@ -36,7 +36,7 @@ parallel batch execution or `/orch <path/to/PROMPT.md>` for a single task.
 
 _Items discovered during task execution are logged here by agents._
 
-- [ ] **Benchmark statistics and persistence** — `zmqx-overheads` currently emits simple key=value summaries for manual smoke/trend runs; future work could add repeated samples, CSV/JSON output, and a persisted baseline workflow before using numbers as regression gates (discovered during TP-006).
+- [ ] **Benchmark statistics and persistence** — `zmqx-overheads` currently emits simple key=value summaries for manual smoke/trend runs; TP-014 final verification confirmed the evidence remains STATUS/docs-based and smoke-quality. Future work could add repeated samples, CSV/JSON output, and a persisted baseline workflow before using numbers as regression gates (discovered during TP-006; reconfirmed during TP-014).
 - [ ] **EventLoop benchmark granularity** — the initial EventLoop scenario measures mailbox/transceiver round trips end-to-end, including worker scheduling and poll cadence; future optimization tasks may want narrower instrumentation around worker wakeups and callback/mailbox paths (discovered during TP-006).
 - [ ] **Receive zero-copy ownership design** — TP-007 kept `ByteString.packCStringLen` receive copies because safely exposing libzmq message storage would require an owned-message/finalizer design that closes `zmq_msg_t` exactly once after the `ByteString` dies; revisit only with explicit lifetime tests and review.
 - [ ] **Send zero-copy ownership design** — TP-011 kept large sends copy-backed through C `malloc`/`free2` and limited the optimized path to multipart prefix frames; true zero-copy over Haskell `ByteString` storage still needs a reviewed `ForeignPtr`/`StablePtr` lifecycle that is safe for libzmq callbacks on arbitrary threads and context shutdown before `zmq_send_const` or zero-copy `zmq_msg_init_data` can be used publicly (discovered during TP-011).

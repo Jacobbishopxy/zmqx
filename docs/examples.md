@@ -62,7 +62,7 @@ cabal test test-simple-dealer --flag demo-tests --flag debug
 
 ## Performance Benchmark Harness
 
-The opt-in `bench/` package provides `zmqx-overheads` for local performance smoke and trend measurements. It is not part of the default test sweep. See [Performance benchmarks](./performance.md) or run:
+The opt-in `bench/` package provides `zmqx-overheads` for local performance smoke and trend measurements. It is not part of the default test sweep. See [Performance benchmarks](./performance.md) for the scenario list, final smoke matrix, and caveats, or run:
 
 ```sh
 cabal run zmqx-overheads -- --help

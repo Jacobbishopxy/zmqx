@@ -93,12 +93,26 @@ scenario=lifecycle payload_bytes=0 frames=0 sockets=10 messages=5 elapsed_ms=0.9
 
 These values are smoke-quality only because the iteration count is intentionally tiny. They verify wiring, metadata, and RTS allocation capture.
 
+## Large send-path benchmark notes
+
+TP-011 adds an internal large-frame send path for multipart prefix frames only: frames at or above 64 KiB that are sent with `ZMQ_SNDMORE` use a copy-backed `zmq_msg_init_data`/`zmq_msg_send` path, while single-frame sends, final multipart frames, and smaller frames remain on `zmq_send`. This keeps the public API unchanged and avoids the single-frame regression observed when the message path was tried for all large frames.
+
+When checking this path, run both `direct` and `multipart` scenarios with `+RTS -s` and include payload sizes around the threshold as well as small and large frames, for example:
+
+```sh
+cabal run --enable-optimization=2 zmqx-overheads -- \
+  --scenario direct --messages 100 --warmup 5 --payload-bytes 65536 +RTS -s
+cabal run --enable-optimization=2 zmqx-overheads -- \
+  --scenario multipart --messages 100 --warmup 5 --frames 4 --payload-bytes 65536 +RTS -s
+```
+
+Treat multipart large-payload improvements and direct single-frame noise separately because only multipart prefix frames exercise the optimized path.
+
 ## Smoke versus regression guidance
 
 - Use tiny runs (`--messages` 1-100) as smoke checks during development. They should pass reliably but are too noisy for performance conclusions.
 - Use optimized runs with larger counts, stable local hardware, and the same RTS settings for trend/regression comparisons.
 - Treat `+RTS -s` allocation totals as contextual evidence, not CI gates. Compare like-for-like commands and metadata.
+- For large send-path checks, include both direct and multipart scenarios at small, threshold-adjacent, medium, and large payload sizes; compare multipart-prefix behavior separately from direct single-frame sends.
 - EventLoop timings include worker scheduling, receiver polling slices, and mailbox delivery; use larger message counts before comparing changes.
 - The lifecycle scenario times context cleanup/finalizer churn in aggregate and therefore reports latency fields as `NA`.
-
-The current benchmark foundation measures overheads only; optimization work belongs in later tasks.

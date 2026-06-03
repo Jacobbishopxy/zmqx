@@ -276,6 +276,12 @@ test-suite test-blocking-backpressure-auto
   main-is:       BlockingBackpressureAuto.hs
   build-depends: bytestring
 
+test-suite test-large-payload-send-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       LargePayloadSendAuto.hs
+  build-depends: bytestring
+
 ------------------------------------------------------------------------------------------------
 -- ContextualOpen coverage
 

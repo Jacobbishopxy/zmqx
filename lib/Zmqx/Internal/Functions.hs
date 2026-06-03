@@ -7,6 +7,7 @@
 
 module Zmqx.Internal.Functions (module Zmqx.Internal.Functions) where
 
+import Control.Exception (bracketOnError)
 import Data.Array.MArray qualified as MArray
 import Data.Array.Storable (StorableArray)
 import Data.Array.Storable qualified as StorableArray
@@ -217,17 +218,17 @@ zmq_msg_init_at message = do
 --
 -- http://api.zeromq.org/master:zmq-msg-init-data
 zmq_msg_init_data :: ByteString -> IO (Either Zmq_error Zmq_msg)
-zmq_msg_init_data (ByteString.Internal.BS original len) = do
-  message <- malloc
-  copy <- mallocBytes len
-  withForeignPtr original \original1 ->
-    copyBytes copy original1 len
-  Zmqx.Internal.Bindings.zmq_msg_init_data message copy (fromIntegral @Int @CSize len) free2 nullPtr >>= \case
-    0 -> pure (Right (Zmq_msg message))
-    _ -> do
-      free message
-      free copy
-      Left <$> zmq_errno
+zmq_msg_init_data (ByteString.Internal.BS original len) =
+  bracketOnError malloc free \message ->
+    bracketOnError (mallocBytes len) free \copy -> do
+      withForeignPtr original \original1 ->
+        copyBytes copy original1 len
+      Zmqx.Internal.Bindings.zmq_msg_init_data message copy (fromIntegral @Int @CSize len) free2 nullPtr >>= \case
+        0 -> pure (Right (Zmq_msg message))
+        _ -> do
+          free message
+          free copy
+          Left <$> zmq_errno
 
 foreign import capi unsafe "static utils.h &free2"
   free2 :: FunPtr (Ptr a -> Ptr b -> IO ())
@@ -284,24 +285,48 @@ zmq_msg_recv_dontwait (Zmq_msg message) (Zmq_socket socket) =
 --
 -- http://api.zeromq.org/master:zmq-msg-send
 zmq_msg_send :: Zmq_msg -> Zmq_socket -> Bool -> IO (Either Zmq_error Int)
-zmq_msg_send (Zmq_msg message) (Zmq_socket socket) more =
-  Zmqx.Internal.Bindings.zmq_msg_send message socket (if more then Zmqx.Internal.Bindings.ZMQ_SNDMORE else 0) >>= \case
-    -1 -> Left <$> zmq_errno
-    n -> pure (Right (fromIntegral @CInt @Int n))
+zmq_msg_send message socket more =
+  zmq_msg_send_with message socket (if more then Zmq_send_option Zmqx.Internal.Bindings.ZMQ_SNDMORE else mempty)
+
+-- | Send a ØMQ message on a ØMQ socket with explicit send flags.
+--
+-- On success libzmq nullifies the message and assumes ownership of any data buffer. Callers that allocate the
+-- `zmq_msg_t` container separately must still free that container, but must not close the successfully-sent message.
+--
+-- http://api.zeromq.org/master:zmq-msg-send
+zmq_msg_send_with :: Zmq_msg -> Zmq_socket -> Zmq_send_option -> IO (Either Zmq_error Int)
+zmq_msg_send_with =
+  msgsendwith Zmqx.Internal.Bindings.zmq_msg_send
+
+-- | Send a ØMQ message on a ØMQ socket with explicit send flags (unsafe FFI).
+--
+-- http://api.zeromq.org/master:zmq-msg-send
+zmq_msg_send_with__unsafe :: Zmq_msg -> Zmq_socket -> Zmq_send_option -> IO (Either Zmq_error Int)
+zmq_msg_send_with__unsafe =
+  msgsendwith Zmqx.Internal.Bindings.zmq_msg_send__unsafe
 
 -- | Send a ØMQ message on a ØMQ socket (non-blocking)
 --
 -- http://api.zeromq.org/master:zmq-msg-send
 zmq_msg_send_dontwait :: Zmq_msg -> Zmq_socket -> Bool -> IO (Either Zmq_error Int)
-zmq_msg_send_dontwait (Zmq_msg message) (Zmq_socket socket) more =
-  Zmqx.Internal.Bindings.zmq_msg_send__unsafe message socket flags >>= \case
-    -1 -> Left <$> zmq_errno
-    n -> pure (Right (fromIntegral @CInt @Int n))
+zmq_msg_send_dontwait message socket more =
+  zmq_msg_send_with__unsafe message socket (Zmq_send_option flags)
   where
     flags =
       if more
         then Zmqx.Internal.Bindings.ZMQ_DONTWAIT .|. Zmqx.Internal.Bindings.ZMQ_SNDMORE
         else Zmqx.Internal.Bindings.ZMQ_DONTWAIT
+
+msgsendwith ::
+  (forall socket. Ptr Zmqx.Internal.Bindings.Zmq_msg -> Ptr socket -> CInt -> IO CInt) ->
+  Zmq_msg ->
+  Zmq_socket ->
+  Zmq_send_option ->
+  IO (Either Zmq_error Int)
+msgsendwith send0 (Zmq_msg message) (Zmq_socket socket) (Zmq_send_option option) =
+  send0 message socket option >>= \case
+    -1 -> Left <$> zmq_errno
+    n -> pure (Right (fromIntegral @CInt @Int n))
 
 -- | Set a ØMQ message option.
 --

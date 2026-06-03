@@ -28,6 +28,8 @@ module Zmqx.Internal
     zmq_msg_init_size,
     zmq_msg_free,
     zmq_msg_send,
+    zmq_msg_send_with,
+    zmq_msg_send_with__unsafe,
     zmq_msg_send_dontwait,
     zmq_msg_recv,
     zmq_msg_recv_dontwait,

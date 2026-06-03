@@ -472,9 +472,59 @@ zhs_disconnect socket endpoint =
             _ -> unexpectedError err
     Right () -> pure ()
 
+largeSendFrameThreshold :: Int
+largeSendFrameThreshold =
+  64 * 1024
+
+sendFrameWith ::
+  (Zmq_socket -> ByteString -> Zmq_send_option -> IO (Either Zmq_error Int)) ->
+  (Zmq_msg -> Zmq_socket -> Zmq_send_option -> IO (Either Zmq_error Int)) ->
+  Zmq_socket ->
+  ByteString ->
+  Zmq_send_option ->
+  IO (Either Zmq_error Int)
+sendFrameWith sendBytes sendMessage socket frame option
+  | ByteString.length frame < largeSendFrameThreshold = sendBytes socket frame option
+  | not (sendOptionHasMore option) = sendBytes socket frame option
+  | otherwise = sendLargeFrameWith sendBytes sendMessage socket frame option
+
+sendOptionHasMore :: Zmq_send_option -> Bool
+sendOptionHasMore = \case
+  ZMQ_SNDMORE -> True
+  _ -> False
+
+-- Large multipart prefix frames use a copy-backed `zmq_msg_init_data` path instead of `zmq_send`.
+-- Large single-frame sends stay on `zmq_send` because the benchmarked message path regressed that case.
+-- The original ByteString is copied into C `malloc` storage before the send call, so libzmq never retains Haskell memory.
+-- On successful `zmq_msg_send`, libzmq owns that C buffer and will release it through `free2`; Haskell only frees the
+-- heap-allocated `zmq_msg_t` container. On failed/interrupted sends, the message is closed first so the C buffer is freed.
+sendLargeFrameWith ::
+  (Zmq_socket -> ByteString -> Zmq_send_option -> IO (Either Zmq_error Int)) ->
+  (Zmq_msg -> Zmq_socket -> Zmq_send_option -> IO (Either Zmq_error Int)) ->
+  Zmq_socket ->
+  ByteString ->
+  Zmq_send_option ->
+  IO (Either Zmq_error Int)
+sendLargeFrameWith sendBytes sendMessage socket frame option =
+  mask \restore ->
+    zmq_msg_init_data frame >>= \case
+      Left _ -> restore (sendBytes socket frame option)
+      Right message -> do
+        let cleanupFailed = do
+              _ <- zmq_msg_close message
+              zmq_msg_free message
+        result <- restore (sendMessage message socket option) `onException` cleanupFailed
+        case result of
+          Left errno -> do
+            cleanupFailed
+            pure (Left errno)
+          Right len -> do
+            zmq_msg_free message
+            pure (Right len)
+
 zhs_send_frame :: Zmq_socket -> ByteString -> Bool -> IO ()
 zhs_send_frame socket frame more =
-  zmq_send socket frame (if more then ZMQ_SNDMORE else mempty) >>= \case
+  sendFrameWith zmq_send zmq_msg_send_with socket frame (if more then ZMQ_SNDMORE else mempty) >>= \case
     Left errno ->
       let err = enrichError "zmq_send" errno
        in case errno of
@@ -490,7 +540,7 @@ zhs_send_frame socket frame more =
 
 zhs_send_frame_dontwait :: Zmq_socket -> ByteString -> Bool -> IO Bool
 zhs_send_frame_dontwait socket frame more =
-  zmq_send__unsafe socket frame (if more then ZMQ_DONTWAIT <> ZMQ_SNDMORE else ZMQ_DONTWAIT) >>= \case
+  sendFrameWith zmq_send__unsafe zmq_msg_send_with__unsafe socket frame (if more then ZMQ_DONTWAIT <> ZMQ_SNDMORE else ZMQ_DONTWAIT) >>= \case
     Left errno ->
       let err = enrichError "zmq_send" errno
        in case errno of
@@ -507,7 +557,7 @@ zhs_send_frame_dontwait socket frame more =
 
 zhs_send_frame_wontblock :: Zmq_socket -> ByteString -> Bool -> IO ()
 zhs_send_frame_wontblock socket frame more =
-  zmq_send__unsafe socket frame (if more then ZMQ_SNDMORE else mempty) >>= \case
+  sendFrameWith zmq_send__unsafe zmq_msg_send_with__unsafe socket frame (if more then ZMQ_SNDMORE else mempty) >>= \case
     Left errno ->
       let err = enrichError "zmq_send" errno
        in case errno of

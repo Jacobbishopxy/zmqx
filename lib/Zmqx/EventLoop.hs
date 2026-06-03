@@ -39,25 +39,30 @@ module Zmqx.EventLoop
   )
 where
 
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, readMVar, tryReadMVar, tryTakeMVar)
+import Control.Concurrent (ThreadId, forkIO, killThread, threadDelay)
 import Control.Concurrent.STM
   ( STM,
     TBQueue,
+    TMVar,
     TQueue,
     TVar,
     atomically,
     isEmptyTBQueue,
     isFullTBQueue,
+    newEmptyTMVarIO,
     newTBQueueIO,
     newTQueueIO,
     newTVarIO,
     orElse,
+    putTMVar,
     readTBQueue,
+    readTMVar,
     readTQueue,
     readTVar,
-    tryReadTQueue,
     retry,
+    takeTMVar,
+    tryReadTQueue,
+    tryTakeTMVar,
     writeTBQueue,
     writeTQueue,
     writeTVar,
@@ -75,8 +80,6 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Word (Word64)
-import GHC.Clock (getMonotonicTimeNSec)
 import System.Environment (lookupEnv)
 import Text.Read (readMaybe)
 import Zmqx.Core.Context (Context (..), RunError (..), globalContextRef, globalSocketFinalizersRef)
@@ -97,7 +100,7 @@ import Zmqx.Internal (Zmq_error (EINVAL, ENOENT, ETERM))
 data EventLoop = EventLoop
   { eventLoopCommands :: !(TQueue Command),
     eventLoopAccepting :: !(TVar Bool),
-    eventLoopWorkerDone :: !(MVar (Either SomeException ())),
+    eventLoopWorkerDone :: !(TMVar (Either SomeException ())),
     eventLoopReceivers :: !(Map Text ReceiverHandle)
   }
 
@@ -190,7 +193,7 @@ data WorkerReceivers = WorkerReceivers
 type SendReply = Either SomeException (Either Error ())
 
 data Command
-  = Send !Text !(NonEmpty ByteString) !(MVar SendReply)
+  = Send !Text !(NonEmpty ByteString) !(TMVar SendReply)
   | Stop
 
 data RecvOutcome
@@ -320,7 +323,7 @@ startEventLoop EventLoopSpec {specSenders, specReceivers, specTransceivers} =
   mask_ do
     commands <- newTQueueIO
     accepting <- newTVarIO True
-    workerDone <- newEmptyMVar
+    workerDone <- newEmptyTMVarIO
     (receiverHandles, workerReceivers) <- prepareReceivers (mergeReceivers specReceivers specTransceivers)
     _ <- forkIO do
       runWorker accepting workerDone (workerLoop accepting (mergeSenders specSenders specTransceivers) workerReceivers commands)
@@ -392,7 +395,7 @@ stopEventLoop EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerD
       when accepting do
         writeTVar eventLoopAccepting False
         writeTQueue eventLoopCommands Stop
-    readMVar eventLoopWorkerDone >>= \case
+    atomically (readTMVar eventLoopWorkerDone) >>= \case
       Left exception -> throwIO exception
       Right () -> pure ()
 
@@ -400,11 +403,12 @@ stopEventLoop EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerD
 -- captured in 'eventLoopWorkerDone' before the worker closes the accepting
 -- state. Public waiters wake from that state change and then surface the
 -- recorded exception instead of remaining blocked during cleanup.
-runWorker :: TVar Bool -> MVar (Either SomeException ()) -> IO () -> IO ()
+runWorker :: TVar Bool -> TMVar (Either SomeException ()) -> IO () -> IO ()
 runWorker accepting workerDone action = do
   result <- try action
-  putMVar workerDone result
-  atomically (writeTVar accepting False)
+  atomically do
+    putTMVar workerDone result
+    writeTVar accepting False
 
 workerLoop :: TVar Bool -> Map Text Sender -> WorkerReceivers -> TQueue Command -> IO ()
 workerLoop accepting senders workerReceivers commands =
@@ -435,10 +439,10 @@ handleCommand accepting senders = \case
         Just sender -> sendWithSender accepting sender frames
     case result of
       Left exception -> do
-        putMVar reply (Left exception)
+        atomically (putTMVar reply (Left exception))
         throwIO exception
       Right sendResult -> do
-        putMVar reply (Right sendResult)
+        atomically (putTMVar reply (Right sendResult))
         pure True
   Stop -> pure False
 
@@ -454,7 +458,7 @@ pollAndDeliverReceivers WorkerReceivers {workerReceiverMap, workerReceiverPollSe
 
 receiverPollSliceMs :: Int
 receiverPollSliceMs =
-  10
+  1
 
 deliverReadyReceiver :: Poll.Ready -> ReceiverRuntime -> IO ()
 deliverReadyReceiver (Poll.Ready isReady) receiver@(ReceiverRuntime socket _) =
@@ -513,7 +517,7 @@ sendWithShutdownAwareSocket accepting socket frames =
 
 senderRetrySliceUs :: Int
 senderRetrySliceUs =
-  1000
+  100
 
 data WorkerSendResult
   = SendCompleted
@@ -560,7 +564,7 @@ sends loop endpoint = \case
 
 queueSend :: EventLoop -> Text -> NonEmpty ByteString -> IO (Either Error ())
 queueSend EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerDone} endpoint frames = do
-  reply <- newEmptyMVar
+  reply <- newEmptyTMVarIO
   queued <-
     atomically do
       accepting <- readTVar eventLoopAccepting
@@ -573,20 +577,23 @@ queueSend EventLoop {eventLoopCommands, eventLoopAccepting, eventLoopWorkerDone}
     then waitForSendReply eventLoopWorkerDone reply
     else stoppedResult "Zmqx.EventLoop.send" eventLoopWorkerDone
 
-waitForSendReply :: MVar (Either SomeException ()) -> MVar SendReply -> IO (Either Error ())
+waitForSendReply :: TMVar (Either SomeException ()) -> TMVar SendReply -> IO (Either Error ())
 waitForSendReply workerDone reply =
-  tryTakeMVar reply >>= \case
+  atomically (tryTakeTMVar reply) >>= \case
     Just result -> completeSendReply result
     Nothing -> do
       testDelayAfterEmptyReply
-      tryReadMVar workerDone >>= \case
-        Just workerResult ->
-          tryTakeMVar reply >>= \case
-            Just result -> completeSendReply result
-            Nothing -> completeWorkerResult workerResult
-        Nothing -> do
-          threadDelay 1000
-          waitForSendReply workerDone reply
+      atomically waitForCompletion >>= \case
+        SendReplyCompleted result -> completeSendReply result
+        SendWorkerCompleted workerResult -> completeWorkerResult workerResult
+  where
+    waitForCompletion =
+      (SendReplyCompleted <$> takeTMVar reply)
+        `orElse` (SendWorkerCompleted <$> readTMVar workerDone)
+
+data SendWaitOutcome
+  = SendReplyCompleted !SendReply
+  | SendWorkerCompleted !(Either SomeException ())
 
 completeSendReply :: SendReply -> IO (Either Error ())
 completeSendReply = \case
@@ -635,23 +642,21 @@ waitForMailbox :: TVar Bool -> TBQueue [ByteString] -> Int -> IO RecvOutcome
 waitForMailbox accepting mailbox timeoutMs
   | timeoutMs < 0 = atomically stoppedOrMessage
   | timeoutMs == 0 = pollMailboxOnce accepting mailbox
-  | otherwise = do
-      now <- getMonotonicTimeNSec
-      loop (now + timeoutNs timeoutMs)
+  | otherwise =
+      pollMailboxOnce accepting mailbox >>= \case
+        RecvTimeout ->
+          withTimeoutFlag (timeoutUs timeoutMs) \timedOut ->
+            atomically (stoppedOrMessage `orElse` timeoutAlternative timedOut)
+        outcome -> pure outcome
   where
     stoppedOrMessage =
       stoppedAlternative accepting `orElse` (RecvMessage <$> readTBQueue mailbox)
 
-    loop deadline =
-      pollMailboxOnce accepting mailbox >>= \case
-        RecvTimeout -> do
-          now <- getMonotonicTimeNSec
-          if now >= deadline
-            then pure RecvTimeout
-            else do
-              threadDelay (pollSleepUs now deadline)
-              loop deadline
-        outcome -> pure outcome
+    timeoutAlternative timedOut = do
+      isTimedOut <- readTVar timedOut
+      if isTimedOut
+        then pure RecvTimeout
+        else retry
 
 pollMailboxOnce :: TVar Bool -> TBQueue [ByteString] -> IO RecvOutcome
 pollMailboxOnce accepting mailbox =
@@ -670,18 +675,30 @@ stoppedAlternative accepting = do
     then retry
     else pure RecvStopped
 
-timeoutNs :: Int -> Word64
-timeoutNs timeoutMs =
-  fromIntegral timeoutMs * 1_000_000
+withTimeoutFlag :: Int -> (TVar Bool -> IO a) -> IO a
+withTimeoutFlag delayUs action =
+  bracket (startTimeoutFlag delayUs) cancelTimeoutFlag \(timedOut, _) ->
+    action timedOut
 
-pollSleepUs :: Word64 -> Word64 -> Int
-pollSleepUs now deadline =
-  let remainingUs = (deadline - now) `div` 1000
-   in fromIntegral (min 1000 (max 1 remainingUs))
+startTimeoutFlag :: Int -> IO (TVar Bool, ThreadId)
+startTimeoutFlag delayUs = do
+  timedOut <- newTVarIO False
+  timer <- forkIO do
+    threadDelay delayUs
+    atomically (writeTVar timedOut True)
+  pure (timedOut, timer)
 
-stoppedResult :: Text -> MVar (Either SomeException ()) -> IO (Either Error a)
+cancelTimeoutFlag :: (TVar Bool, ThreadId) -> IO ()
+cancelTimeoutFlag (_, timer) =
+  killThread timer
+
+timeoutUs :: Int -> Int
+timeoutUs timeoutMs =
+  fromInteger (min (toInteger (maxBound :: Int)) (toInteger timeoutMs * 1000))
+
+stoppedResult :: Text -> TMVar (Either SomeException ()) -> IO (Either Error a)
 stoppedResult functionName workerDone =
-  readMVar workerDone >>= \case
+  atomically (readTMVar workerDone) >>= \case
     Left exception -> throwIO exception
     Right () -> pure (Left (stoppedLoopError functionName))
 

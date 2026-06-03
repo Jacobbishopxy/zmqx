@@ -90,7 +90,7 @@ These values are smoke-quality only because the iteration count is intentionally
 - Use tiny runs (`--messages` 1-100) as smoke checks during development. They should pass reliably but are too noisy for performance conclusions.
 - Use optimized runs with larger counts, stable local hardware, and the same RTS settings for trend/regression comparisons.
 - Treat `+RTS -s` allocation totals as contextual evidence, not CI gates. Compare like-for-like commands and metadata.
-- EventLoop timings include worker scheduling and mailbox polling; use larger message counts before comparing changes.
+- EventLoop timings include worker scheduling, receiver polling slices, and mailbox delivery; use larger message counts before comparing changes.
 - The lifecycle scenario times context cleanup/finalizer churn in aggregate and therefore reports latency fields as `NA`.
 
 The current benchmark foundation measures overheads only; optimization work belongs in later tasks.

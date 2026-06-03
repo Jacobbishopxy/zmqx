@@ -296,6 +296,12 @@ test-suite test-event-loop-safety-auto
   main-is:       EventLoopSafetyAuto.hs
   build-depends: bytestring
 
+test-suite test-event-loop-latency-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       EventLoopLatencyAuto.hs
+  build-depends: bytestring
+
 test-suite test-monitor-event
   import:        test-properties
   type:          exitcode-stdio-1.0

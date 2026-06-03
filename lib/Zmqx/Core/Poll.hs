@@ -293,11 +293,11 @@ poll_ sockets@Sockets {pollableCount, inputREQCount} maybeDeadline =
           pure True
         Just deadline -> do
           now <- getMonotonicTimeNSec
-          if now > deadline
+          if now >= deadline
             then pure False
             else do
               let remainingUs =
-                    fromIntegral @Word64 @Int ((deadline - now) `div` 1000)
+                    fromIntegral @Word64 @Int (((deadline - now - 1) `div` 1000) + 1)
               threadDelay (min reqProbeSliceUs remainingUs)
               pure True
 
@@ -314,10 +314,10 @@ poll_ sockets@Sockets {pollableCount, inputREQCount} maybeDeadline =
             Just deadline -> do
               now <- getMonotonicTimeNSec
               pure
-                if now > deadline
+                if now >= deadline
                   then 0
                   else -- safe downcast: can't overflow Int64 after dividing by 1,000,000
-                    let remainingMs = fromIntegral @Word64 @Int64 ((deadline - now) `div` 1_000_000)
+                    let remainingMs = fromIntegral @Word64 @Int64 (((deadline - now - 1) `div` 1_000_000) + 1)
                      in if hasInputREQs
                           then min remainingMs reqProbeSliceMs
                           else remainingMs
@@ -328,7 +328,7 @@ poll_ sockets@Sockets {pollableCount, inputREQCount} maybeDeadline =
         Nothing -> retry
         Just deadline -> do
           now <- getMonotonicTimeNSec
-          if now > deadline
+          if now >= deadline
             then pure Nothing
             else retry
 

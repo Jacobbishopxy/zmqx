@@ -166,6 +166,12 @@ test-suite test-poll-out
   main-is:       PollOut.hs
   build-depends: bytestring
 
+test-suite test-poll-scaling-auto
+  import:        test-properties
+  type:          exitcode-stdio-1.0
+  main-is:       PollScalingAuto.hs
+  build-depends: bytestring
+
 ------------------------------------------------------------------------------------------------
 -- Router <-> Dealer, broker
 

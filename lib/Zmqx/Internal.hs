@@ -62,6 +62,7 @@ module Zmqx.Internal
 
     -- ** Input/output multiplexing
     zmq_poll,
+    zmq_poll_ptr,
 
     -- ** Message proxying
     zmq_proxy,

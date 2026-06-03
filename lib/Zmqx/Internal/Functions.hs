@@ -626,7 +626,19 @@ zmq_unbind (Zmq_socket socket) endpoint =
 ------------------------------------------------------------------------------------------------------------------------
 -- Input/output multiplexing
 
--- TODO replace StorableArray with raw ForeignPtr to drop `array` dependency
+-- | Input/output multiplexing over an existing pollitem pointer.
+--
+-- http://api.zeromq.org/master:zmq-poll
+zmq_poll_ptr :: Ptr Zmqx.Internal.Bindings.Zmq_pollitem -> Int -> Int64 -> IO (Either Zmq_error Int)
+zmq_poll_ptr pollitems numPollitems timeout =
+  poll pollitems (fromIntegral @Int @CInt numPollitems) (fromIntegral @Int64 @CLong timeout) >>= \case
+    -1 -> Left <$> zmq_errno
+    n -> pure (Right (fromIntegral @CInt @Int n))
+  where
+    poll =
+      if timeout == 0
+        then Zmqx.Internal.Bindings.zmq_poll__unsafe
+        else Zmqx.Internal.Bindings.zmq_poll
 
 -- | Input/output multiplexing.
 --
@@ -634,16 +646,9 @@ zmq_unbind (Zmq_socket socket) endpoint =
 zmq_poll :: StorableArray Int Zmqx.Internal.Bindings.Zmq_pollitem -> Int64 -> IO (Either Zmq_error Int)
 zmq_poll pollitems timeout = do
   (lo, hi) <- MArray.getBounds pollitems
-  let numPollitems = fromIntegral @Int @CInt (hi - lo + 1)
+  let numPollitems = hi - lo + 1
   StorableArray.withStorableArray pollitems \cpollitems ->
-    poll cpollitems numPollitems (fromIntegral @Int64 @CLong timeout) >>= \case
-      -1 -> Left <$> zmq_errno
-      n -> pure (Right (fromIntegral @CInt @Int n))
-  where
-    poll =
-      if timeout == 0
-        then Zmqx.Internal.Bindings.zmq_poll__unsafe
-        else Zmqx.Internal.Bindings.zmq_poll
+    zmq_poll_ptr cpollitems numPollitems timeout
 
 -- | Start a built-in ØMQ proxy.
 --

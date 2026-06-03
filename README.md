@@ -74,4 +74,5 @@ cabal build --flag debug
 
 - [Quickstart](./docs/quickstart.md)
 - [Examples](./docs/examples.md)
+- [Performance benchmarks](./docs/performance.md)
 - [Maintainer checklist](./docs/checklist.md)

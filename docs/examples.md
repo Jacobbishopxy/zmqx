@@ -60,6 +60,14 @@ cabal test test-simple-dealer --flag demo-tests --flag debug
 - [test/MutWorker.hs](../test/MutWorker.hs)
 - [test/LBWorker.hs](../test/LBWorker.hs)
 
+## Performance Benchmark Harness
+
+The opt-in `bench/` package provides `zmqx-overheads` for local performance smoke and trend measurements. It is not part of the default test sweep. See [Performance benchmarks](./performance.md) or run:
+
+```sh
+cabal run zmqx-overheads -- --help
+```
+
 ## Automated Regression Suites
 
 The default automated sweep is buildable without `--flag demo-tests` and includes suites such as:

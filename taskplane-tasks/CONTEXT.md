@@ -35,3 +35,6 @@ parallel batch execution or `/orch <path/to/PROMPT.md>` for a single task.
 ## Technical Debt / Future Work
 
 _Items discovered during task execution are logged here by agents._
+
+- [ ] **Benchmark statistics and persistence** — `zmqx-overheads` currently emits simple key=value summaries for manual smoke/trend runs; future work could add repeated samples, CSV/JSON output, and a persisted baseline workflow before using numbers as regression gates (discovered during TP-006).
+- [ ] **EventLoop benchmark granularity** — the initial EventLoop scenario measures mailbox/transceiver round trips end-to-end, including worker scheduling and poll cadence; future optimization tasks may want narrower instrumentation around worker wakeups and callback/mailbox paths (discovered during TP-006).

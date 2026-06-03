@@ -1,0 +1,33 @@
+cabal-version: 3.0
+name:          zmqx-benchmarks
+version:       0.1.0.0
+synopsis:      Opt-in zmqx overhead benchmarks
+description:   Opt-in benchmark executable for measuring zmqx overhead families.
+license:       BSD-3-Clause
+author:        jacob
+maintainer:    jacobbishopxy@gmail.com
+build-type:    Simple
+
+common bench-properties
+  default-language: GHC2024
+  hs-source-dirs:   .
+  build-depends:
+    , base        >=4 && <5
+    , bytestring
+    , text
+    , time
+    , zmqx
+
+  ghc-options:      -Wall -threaded -rtsopts
+  default-extensions:
+    BlockArguments
+    DerivingStrategies
+    LambdaCase
+    NamedFieldPuns
+    OverloadedStrings
+    RecordWildCards
+
+executable zmqx-overheads
+  import:        bench-properties
+  main-is:       Main.hs
+  other-modules: Bench.Helpers

@@ -23,6 +23,7 @@ module Zmqx.Internal
 
     -- ** Message
     zmq_msg_init,
+    zmq_msg_init_at,
     zmq_msg_init_data,
     zmq_msg_init_size,
     zmq_msg_free,

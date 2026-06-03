@@ -55,7 +55,7 @@ import Data.Text.Lazy qualified as Text.Lazy
 import Data.Text.Lazy.Builder qualified as Text (Builder)
 import Data.Text.Lazy.Builder qualified as Text.Builder
 import Data.Word (Word8)
-import Foreign (Ptr)
+import Foreign (Ptr, alloca)
 import Foreign.C.Types (CInt, CShort)
 import GHC.Base (Symbol)
 import GHC.MVar (MVar (..))
@@ -573,17 +573,19 @@ zhs_recv_frame_wontblock_ socket =
       Right _len -> zmq_msg_more frame
 
 zhs_with_frame :: (Zmq_msg -> IO a) -> IO a
-zhs_with_frame =
-  bracket zmq_msg_init \message -> do
-    result <- zmq_msg_close message
-    zmq_msg_free message
-    case result of
-      Left errno ->
-        let err = enrichError "zmq_msg_close" errno
-         in case errno of
-              EFAULT -> throwIO err
-              _ -> unexpectedError err
-      Right () -> pure ()
+zhs_with_frame action =
+  alloca \messagePtr ->
+    bracket (zmq_msg_init_at messagePtr) closeFrame action
+  where
+    closeFrame message = do
+      result <- zmq_msg_close message
+      case result of
+        Left errno ->
+          let err = enrichError "zmq_msg_close" errno
+           in case errno of
+                EFAULT -> throwIO err
+                _ -> unexpectedError err
+        Right () -> pure ()
 
 zhs_frame :: Zmq_msg -> IO (Frame a)
 zhs_frame frame = do

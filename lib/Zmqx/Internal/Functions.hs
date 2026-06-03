@@ -189,14 +189,25 @@ zmq_msg_get (Zmq_msg message) (Zmq_msg_option option) =
     -1 -> Left <$> zmq_errno
     n -> pure (Right (fromIntegral @CInt @Int n))
 
--- | Initialise an empty ØMQ message.
+-- | Initialise an empty ØMQ message on the Haskell heap.
 --
--- The message must be freed with 'zmq_msg_free'.
+-- The returned message owns heap storage for the `zmq_msg_t` container and must be freed with 'zmq_msg_free' after
+-- 'zmq_msg_close'. Receive hot paths that only need a message object for the duration of one FFI call should prefer
+-- 'zmq_msg_init_at' with caller-managed storage to avoid per-frame heap allocation.
 --
 -- http://api.zeromq.org/master:zmq-msg-init
 zmq_msg_init :: IO Zmq_msg
 zmq_msg_init = do
   message <- malloc
+  zmq_msg_init_at message
+
+-- | Initialise an empty ØMQ message in caller-provided storage.
+--
+-- This helper is for stack-allocated or otherwise caller-managed `zmq_msg_t` storage. The message must still be closed
+-- with 'zmq_msg_close' to release libzmq-owned frame contents, but the storage itself must not be passed to
+-- 'zmq_msg_free'.
+zmq_msg_init_at :: Ptr Zmqx.Internal.Bindings.Zmq_msg -> IO Zmq_msg
+zmq_msg_init_at message = do
   _ <- Zmqx.Internal.Bindings.zmq_msg_init message -- always returns 0
   pure (Zmq_msg message)
 
